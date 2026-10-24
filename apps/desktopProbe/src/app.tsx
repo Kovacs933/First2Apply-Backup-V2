@@ -24,7 +24,6 @@ import { LoginPage } from './pages/login';
 import { ResetPasswordPage } from './pages/resetPassword';
 import { SettingsPage } from './pages/settings';
 import { SignupPage } from './pages/signup';
-import { SubscriptionPage } from './pages/subscription';
 
 TimeAgo.addDefaultLocale(en);
 
@@ -43,7 +42,6 @@ const router = createMemoryRouter(
       <Route path="/settings" element={<AuthGuardedComponent component={SettingsPage} />}></Route>
       <Route path="/help" element={<AuthGuardedComponent component={HelpPage} />} />
       <Route path="/feedback" element={<AuthGuardedComponent component={FeedbackPage} />} />
-      <Route path="/subscription" element={<AuthGuardedComponent component={SubscriptionPage} />}></Route>
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />

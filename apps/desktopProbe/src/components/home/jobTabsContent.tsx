@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAppState } from '@/hooks/appState';
 import { useError } from '@/hooks/error';
-import { useSession } from '@/hooks/session';
 import { useSettings } from '@/hooks/settings';
 import {
   getJobById,
@@ -55,7 +54,6 @@ export function JobTabsContent({
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { isSubscriptionExpired } = useSession();
 
   const jobDescriptionRef = useRef<HTMLDivElement>(null);
   const browserWindowRef = useRef<BrowserWindowHandle>(null);
@@ -80,12 +78,6 @@ export function JobTabsContent({
   useEffect(() => {
     const asyncLoad = async () => {
       try {
-        // check subscription status
-        if (isSubscriptionExpired) {
-          navigate('/subscription');
-          return;
-        }
-
         console.log(location.search);
         setListing((listing) => ({ ...listing, isLoading: true }));
 

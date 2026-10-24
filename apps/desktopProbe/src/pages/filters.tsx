@@ -2,20 +2,10 @@ import { Cross2Icon, InfoCircledIcon, MinusCircledIcon } from '@radix-ui/react-i
 import { useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
-import { PricingOptions } from '@/components/pricingOptions';
 import { FiltersSkeleton } from '@/components/skeletons/filtersSkeleton';
 import { useError } from '@/hooks/error';
-import { useSession } from '@/hooks/session';
-import { getAdvancedMatchingConfig, openExternalUrl, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
-import { StripeBillingPlan, SubscriptionTier } from '@first2apply/core';
+import { getAdvancedMatchingConfig, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
 import { Alert, AlertDescription, AlertTitle } from '@first2apply/ui';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@first2apply/ui';
 import { Badge } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
 import { Input } from '@first2apply/ui';
@@ -27,12 +17,10 @@ import { DefaultLayout } from './defaultLayout';
 export function FiltersPage() {
   const { handleError } = useError();
   const { toast } = useToast();
-  const { profile, stripeConfig, refreshProfile } = useSession();
 
   const [userAiInput, setUserAiInput] = useState<string>('');
   const [blacklistedCompanies, setBlacklistedCompanies] = useState<string[]>([]);
   const [addBlacklistedCompany, setAddBlacklistedCompany] = useState<string>('');
-  const [isSubscriptionDialogOpen, setSubscriptionDialogOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showAllBlacklistedCompanies, setShowAllBlacklistedCompanies] = useState(false);
 
@@ -67,53 +55,9 @@ export function FiltersPage() {
       });
       setUserAiInput(updatedConfig.chatgpt_prompt);
       setBlacklistedCompanies(updatedConfig.blacklisted_companies);
-
-      // if the user is not on the PRO plan, show the subscription dialog
-      if (profile.subscription_tier !== 'pro') {
-        setSubscriptionDialogOpen(true);
-        return;
-      } else {
-        toast({ title: 'Advanced matching filters saved' });
-      }
+      toast({ title: 'Advanced matching filters saved' });
     } catch (error) {
       handleError({ error, title: 'Failed to save advanced matching filters' });
-    }
-  };
-
-  /**
-   * Handle plan selection from a trial customer.
-   */
-  const onSelectPlan = async ({ tier, billingCycle }: { tier: SubscriptionTier; billingCycle: string }) => {
-    try {
-      if (!profile.is_trial) {
-        await openExternalUrl(stripeConfig.customerPortalLink);
-      } else {
-        const stripePlan = stripeConfig.plans.find((p) => p.tier === tier);
-
-        if (!stripePlan) {
-          console.error(`Stripe plan not found for ${tier}`);
-          return;
-        }
-        const checkoutLink = stripePlan[`${billingCycle}CheckoutLink` as keyof StripeBillingPlan];
-
-        if (!checkoutLink) {
-          console.error(`Checkout link not found for ${billingCycle}`);
-          return;
-        }
-
-        await openExternalUrl(checkoutLink);
-      }
-    } catch (error) {
-      handleError({ error, title: 'Failed to upgrade to PRO plan' });
-    }
-  };
-
-  const onCloseSubscriptionDialog = async () => {
-    try {
-      await refreshProfile();
-      setSubscriptionDialogOpen(false);
-    } catch (error) {
-      handleError({ error, title: 'Failed to close subscription dialog' });
     }
   };
 
@@ -250,46 +194,6 @@ export function FiltersPage() {
       <Button className="ml-auto w-36" onClick={onSave}>
         Save filters
       </Button>
-
-      <SubscriptionDialog
-        isOpen={isSubscriptionDialogOpen}
-        onCancel={() => onCloseSubscriptionDialog()}
-        onSelectPlan={onSelectPlan}
-      />
     </DefaultLayout>
-  );
-}
-
-function SubscriptionDialog({
-  isOpen,
-  onCancel,
-  onSelectPlan,
-}: {
-  isOpen: boolean;
-  onCancel: () => void;
-  onSelectPlan: (_: { tier: SubscriptionTier; billingCycle: string }) => Promise<void>;
-}) {
-  return (
-    <AlertDialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          onCancel();
-        }
-      }}
-    >
-      <AlertDialogContent className="max-h-screen max-w-[80%] overflow-y-scroll">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="mb-5 text-center text-2xl">
-            Advanced matching is only available with a <b>PRO</b> plan
-            <Cross2Icon className="absolute right-4 top-4 h-6 w-6 cursor-pointer" onClick={onCancel} />
-          </AlertDialogTitle>
-          <AlertDialogDescription className="">
-            <PricingOptions onSelectPlan={onSelectPlan} disableBasic={true}></PricingOptions>
-          </AlertDialogDescription>
-          <AlertDialogDescription className="flex items-center"></AlertDialogDescription>
-        </AlertDialogHeader>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }

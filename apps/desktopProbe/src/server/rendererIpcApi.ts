@@ -10,7 +10,6 @@ import { IAnalyticsClient } from '../lib/analytics';
 import { F2aAutoUpdater } from './autoUpdater';
 import { JobScanner } from './jobScanner';
 import { OverlayBrowserView } from './overlayBrowserView';
-import { getStripeConfig } from './stripeConfig';
 
 /**
  * Helper methods used to centralize error handling.
@@ -231,13 +230,6 @@ export function initRendererIpcApi({
     _apiCall(async () => {
       const profile = await supabaseApi.getProfile();
       return { profile };
-    }),
-  );
-
-  ipcMain.handle('get-stripe-config', async () =>
-    _apiCall(async () => {
-      const config = await getStripeConfig(nodeEnv);
-      return { config };
     }),
   );
 
