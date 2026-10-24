@@ -1,0 +1,23 @@
+{
+  "name": "@first2apply/invoice-downloader",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\"",
+    "lint": "eslint src/",
+    "watch": "nodemon --exec \"node --require ts-node/register --inspect=0.0.0.0:9229 src/main.ts\"",
+    "prettier": "npx prettier --check \"src/**/*.ts\""
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "stripe": "^18.3.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/xml2js": "^0.4.14"
+  }
+}

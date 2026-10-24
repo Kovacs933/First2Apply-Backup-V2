@@ -1,0 +1,59 @@
+{
+  "name": "first2apply-desktop",
+  "productName": "First 2 Apply",
+  "version": "2.3.5",
+  "description": "First 2 Apply - Job Alert App | Instant Notifications for New Job Listings",
+  "main": ".webpack/main",
+  "scripts": {
+    "start": "electron-forge start",
+    "publish": "electron-forge publish",
+    "lint": "eslint --ext .ts,.tsx .",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "prettier": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "package": "electron-forge package",
+    "make": "electron-forge make --arch x64",
+    "release": "npx release-it --ci"
+  },
+  "keywords": [],
+  "author": "BeastX Industries",
+  "license": "MIT",
+  "release-it": {
+    "git": {
+      "commitMessage": "chore(release): desktop-v${version}",
+      "tagName": "desktop-v${version}",
+      "tagAnnotation": "Desktop App Release ${version}"
+    },
+    "npm": {
+      "publish": false,
+      "skipChecks": true
+    },
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": "conventionalcommits",
+        "infile": "CHANGELOG.md"
+      }
+    }
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-appx": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-dmg": "^7.10.2",
+    "@electron-forge/maker-flatpak": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+    "@electron-forge/plugin-fuses": "^7.10.2",
+    "@electron-forge/plugin-webpack": "^7.10.2",
+    "@electron-forge/publisher-s3": "^7.10.2",
+    "@electron-forge/shared-types": "^7.10.2",
+    "@electron/fuses": "^1.8.0",
+    "electron": "^41.3.0"
+  },
+  "dependencies": {
+    "@first2apply/core": "workspace:*",
+    "@first2apply/ui": "workspace:*"
+  }
+}

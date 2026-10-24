@@ -1,0 +1,417 @@
+import { Job, throwError } from '@first2apply/core';
+import { DbSchema, User } from '@first2apply/core';
+import { SupabaseClient } from '@supabase/supabasefork';
+import { DOMParser, Element } from 'deno-dom-wasm';
+import { zodResponseFormat } from 'openai/helpers/zod';
+import turndown from 'turndown';
+import { z } from 'zod';
+
+import { denoHashString } from './deno.ts';
+import { JobDescriptionUpdates } from './jobDescriptionParser.ts';
+import { ILogger } from './logger.ts';
+import { OPENROUTER_ROUTING, buildOpenAiClient, logAiUsage } from './openAI.ts';
+import { JobSiteParseResult, ParsedJob } from './parsers/parserTypes.ts';
+
+/**
+ * Method used to parse jobs from custom pages.
+ * Will use AI to extract the jobs from the HTML.
+ */
+export async function parseCustomJobs({
+  siteId,
+  html,
+  url,
+  user,
+  ...context
+}: {
+  siteId: number;
+  html: string;
+  url: string;
+  user: User;
+
+  // dependencies
+  logger: ILogger;
+  supabaseAdminClient: SupabaseClient<DbSchema, 'public'>;
+}): Promise<JobSiteParseResult> {
+  const { logger } = context;
+
+  const { openAi, llmConfig } = buildOpenAiClient({
+    modelName: 'deepseek/deepseek-v4-flash',
+    ...context,
+  });
+
+  // helper methods
+  const generateUserPrompt = () => {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    if (!document || !document.documentElement) throw new Error('Could not parse html');
+
+    // save some info before stripping
+    const headerInfo = extractHeaderInfo(document.documentElement);
+    logger.info(
+      `page title: ${headerInfo.title}, description: ${headerInfo.metaDescription}, favicon: ${headerInfo.faviconUrl}`,
+    );
+
+    // strip away nodes that are not relevant to the LLM
+    const nodesToRemove = ['head', 'script', 'style', 'nav', 'header', 'footer', 'aside', 'iframe'];
+    stripNodes(document.documentElement, nodesToRemove);
+    stripAttributes(document.documentElement, /^(class|style|aria-.*|role)$/);
+    const htmlContent = document.documentElement?.outerHTML ?? '';
+
+    return `Extract the jobs listing from the HTML page below. Return the result as a JSON object matching the provided schema. If no jobs are found, return an empty array for the jobs field.
+Here are some rules for the required output:
+- The externalId field should be a unique identifier for the job, preferably from the job site.
+  Try to extract it from the job URL or any data attributes. 
+  If not available, create one based on the job title and company name.
+- The externalUrl field should be the direct URL to the job listing. It should be a fully qualified URL. If only a relative URL is available, prepend the domain name from the page URL: ${url}. Should never be an email address.
+- The title field should be the job title.
+- The companyName field should be the name of the company offering the job.
+- The companyLogo field should be a URL to the company's logo, if available. If not available, try to use the site favicon URL: ${
+      headerInfo.faviconUrl
+    }. If the logo URL is relative, prepend the domain name from the page URL: ${url}.
+- The jobType field should indicate if the job is remote, hybrid, or onsite. If not specified, leave it empty.
+- The location field should specify the job's location, if available. 
+    Add the full location as provided including street, city, state, country if available. If only "remote" is mentioned, leave the location empty and set jobType to "remote".
+- The salary field should specify the offered salary or salary range, if available. Always try to extract it if present. If there are other benefits mentioned (e.g. stock options, bonuses), do not include them in the salary field, but put them as tags.
+- The tags field should include relevant tags or keywords associated with the job, if available. If you see "easy apply" on a job add it as a tag. Or if the job is sponsored.
+
+Limit the number of jobs extracted to a maximum of 30. If more jobs are present, prioritize the most recent ones.
+Try to extract all or as many jobs from the page as possible. And preserve the order of the jobs as they appear on the page.
+
+Here is the page header info:
+${JSON.stringify(headerInfo)}
+
+Here is the HTML page:
+"""
+${htmlContent}
+"""`;
+  };
+
+  const response = await openAi.chat.completions.create({
+    model: llmConfig.model,
+    messages: [
+      {
+        role: 'system',
+        content: SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: generateUserPrompt(),
+      },
+    ],
+    max_tokens: 50_000,
+    response_format: zodResponseFormat(PARSE_JOBS_PAGE_SCHEMA, 'ParseJobsPageResponse'),
+    ...OPENROUTER_ROUTING,
+  });
+
+  const choice = response.choices[0];
+  if (choice.finish_reason !== 'stop') {
+    throw new Error(`OpenAI response did not finish: ${choice.finish_reason}`);
+  }
+
+  const parseResult = PARSE_JOBS_PAGE_SCHEMA.parse(JSON.parse(choice.message.content ?? throwError('missing content')));
+
+  await logAiUsage({
+    forUserId: user.id,
+    llmConfig,
+    response,
+    ...context,
+  });
+
+  const listFound = !parseResult.errorMessage;
+  if (!listFound) {
+    logger.error(`Site ${siteId} - OpenAI reported an error: ${parseResult.errorMessage}`);
+  }
+
+  const jobs = await Promise.all(
+    parseResult.jobs.map(
+      async (job): Promise<ParsedJob> => ({
+        // hash the url to create a stable externalId if not provided
+        externalId: await denoHashString(job.externalUrl),
+        externalUrl: job.externalUrl,
+        title: job.title,
+        description: job.description || undefined,
+        companyName: job.companyName,
+        companyLogo: job.companyLogo || undefined,
+        jobType: job.jobType || undefined,
+        location: job.location || undefined,
+        salary: job.salary || undefined,
+        tags: job.tags || [],
+        // associate with the site
+        siteId,
+        labels: [],
+      }),
+    ),
+  ).then((jobs) => {
+    // filter out invalid jobs
+    return jobs.filter((job) => !!job.externalId && job.externalUrl?.startsWith('https://'));
+  });
+
+  return {
+    jobs,
+    listFound,
+    elementsCount: jobs.length,
+  };
+}
+const JOB_SCHEMA = z.object({
+  externalUrl: z.string(),
+
+  title: z.string().min(3).max(200),
+  companyName: z.string().min(2).max(100),
+  companyLogo: z.string().optional().nullable(),
+
+  jobType: z.enum(['remote', 'hybrid', 'onsite']).optional().nullable(),
+  location: z.string().max(100).optional().nullable(),
+  salary: z.string().max(100).optional().nullable(),
+  tags: z.array(z.string().max(50)).optional().nullable(),
+
+  description: z.string().min(20).optional().nullable(),
+});
+const PARSE_JOBS_PAGE_SCHEMA = z.object({
+  jobs: z.array(JOB_SCHEMA).min(0).max(50),
+  errorMessage: z.string().max(500).optional().nullable(),
+});
+const SYSTEM_PROMPT = `You are an expert web scraper specialized in extracting job listings from HTML pages. 
+Your task is to analyze the provided HTML content and identify job listings, extracting relevant details for each job.
+If you cannot extract the information due to the HTML being a login page, CAPTCHA, or any other access restriction, respond with an empty result and an appropriate errorMessage.
+
+The externalUrl ideally should point to a dedicated page, not the same listing page and should be unique per job. It's the most important field to extract.
+If the job description mentions a another URL where to apply, use that as externalUrl.
+
+When composing the externalUrl or companyLogo with relative URLs, ensure to make it relative to the URL of the scraped page, not just the domain.
+Here are some common examples of externalUrls from different popular job sites:
+- talent.com: https://www.talent.com/view?id=1234567890abcdef
+- linkedin.com: https://www.linkedin.com/jobs/view/1234567890/
+- indeed.com: https://www.indeed.com/viewjob?jk=abcdef1234567890
+- glassdoor.com: https://www.glassdoor.com/job-listing/software-engineer-google-JV_IC1234567_KO0,17_KE18,24.htm?jl=1234567890
+- monster.com: https://www.monster.com/jobs/search/?q=Software-Engineer&where=Remote&jobid=1234567890
+- google.com: https://www.google.com/about/careers/applications/jobs/results/132525933222339270-software-engineer-iii-aiml
+
+If the user is trying to scrape a page that is just a single job description, return an empty jobs array and an appropriate errorMessage.
+
+IMPORTANT: if the page is a job results page, but there are no jobs matching the filters, DON'T return an error, just return an empty jobs array and no errorMessage.
+This is also valid for Google search results where the user might be looking for jobs from ATS sites (using the last 24h filter in Google search might return no results, but it's not an error, just that there are no jobs matching the criteria).
+
+Here are some unsupported website:
+- hiringcafe.com. - their html pages don't allow scraping.
+
+Here are some other site specific notes:
+- hnhiring.com 
+  - this site is a forum, so the job posts are in forum post format.
+  - VERY IMPORTANT: extract the description as the post content exactly as is, the original post body.
+  - some posts are marked as "Multiple Roles", in that case extract the description as is, do not try to split into multiple jobs, each with their unique url (ATS sites preferred)
+`;
+
+/**
+ * Parse jobs description from a custom job site.
+ * Will use AI to extract the description from the HTML.
+ */
+export async function parseCustomJobDescription({
+  html,
+  user,
+  job,
+  ...context
+}: {
+  html: string;
+  user: User;
+  job: Job;
+
+  // dependencies
+  logger: ILogger;
+  supabaseAdminClient: SupabaseClient<DbSchema, 'public'>;
+}): Promise<JobDescriptionUpdates> {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  if (!document) throw new Error('Could not parse html');
+
+  const { data: advancedMatchingRecord, error: getAdvancedMatchingRecordError } = await context.supabaseAdminClient
+    .from('advanced_matching')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (getAdvancedMatchingRecordError) {
+    context.logger.error(
+      `Failed to load advanced matching config for user ${user.id}: ${getAdvancedMatchingRecordError.message}`,
+    );
+  }
+
+  // helper methods
+  const generateUserPrompt = () => {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    if (!document || !document.documentElement) throw new Error('Could not parse html');
+
+    // strip away nodes that are not relevant to the LLM
+    const nodesToRemove = ['head', 'script', 'style', 'nav', 'header', 'footer', 'aside', 'img', 'form'];
+    stripNodes(document.documentElement, nodesToRemove);
+    stripAttributes(document.documentElement, /^(class|style|aria-.*|role)$/);
+    const htmlContent = turndownService.turndown(document.documentElement?.outerHTML ?? '');
+    const withAdvancedMatchingPreferences = `Here are my job search preferences: ${advancedMatchingRecord?.chatgpt_prompt ?? 'nothing specific for the moment'}.`;
+
+    const userPrompt = `Extract the job description from the HTML page below. Return the result as a JSON object matching the provided schema.
+Here is the HTML page turned into markdown:
+"""
+${htmlContent}
+"""
+
+${withAdvancedMatchingPreferences}
+`;
+
+    return { userPrompt, htmlContent };
+  };
+
+  const { userPrompt, htmlContent } = generateUserPrompt();
+  const { openAi, llmConfig } = buildOpenAiClient({
+    modelName: 'deepseek/deepseek-v4-flash',
+    ...context,
+  });
+
+  const response = await openAi.chat.completions.create({
+    model: llmConfig.model,
+    messages: [
+      {
+        role: 'system',
+        content: JOB_DESCRIPTION_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: userPrompt,
+      },
+    ],
+    max_tokens: 10_000,
+    response_format: zodResponseFormat(PARSE_JOB_DESCRIPTION_SCHEMA, 'ParseJobDescriptionResponse'),
+    ...OPENROUTER_ROUTING,
+  });
+
+  const choice = response.choices[0];
+  if (choice.finish_reason !== 'stop') {
+    throw new Error(`OpenAI response did not finish: ${choice.finish_reason}`);
+  }
+
+  const parseResult = PARSE_JOB_DESCRIPTION_SCHEMA.parse(
+    JSON.parse(choice.message.content ?? throwError('missing content')),
+  );
+
+  await logAiUsage({
+    forUserId: user.id,
+    llmConfig,
+    response,
+    ...context,
+  });
+
+  let updates: JobDescriptionUpdates = {};
+  const parsingFailed = !!parseResult.errorMessage;
+  if (parsingFailed) {
+    const errorDescription = `
+### Original Description
+${job.description ?? 'No original description available.'}
+
+AI parser could not properly read this job description: 
+${parseResult.errorMessage ?? 'Unknown error'}
+
+<details>
+<summary>Original Description (for reference)</summary>
+
+${htmlContent}
+</details>
+`;
+
+    updates = {
+      description: errorDescription,
+    };
+  } else {
+    const formattedDescription = `
+## AI Generated Summary
+${parseResult.summary?.trim() ?? 'No summary extracted.'}
+
+## AI Extracted Job Description
+${parseResult.description?.trim() ?? 'No description extracted.'}
+
+<details>
+<summary>Original Description (for reference)</summary>
+${job.description ?? 'No original description available.'}
+</details>
+`;
+
+    updates = {
+      description: formattedDescription,
+      salary: parseResult.salary?.trim(),
+      tags: parseResult.tags?.map((tag) => tag.trim()),
+    };
+  }
+
+  return updates;
+}
+const PARSE_JOB_DESCRIPTION_SCHEMA = z.object({
+  description: z.string().min(20).optional().nullable(),
+  summary: z.string().max(1000).optional().nullable(),
+  salary: z.string().optional().nullable(),
+  tags: z.array(z.string().max(50)).optional().nullable(),
+  errorMessage: z.string().max(500).optional().nullable(),
+});
+const JOB_DESCRIPTION_SYSTEM_PROMPT = `You are an expert web scraper specialized in extracting the job description from an HTML page.
+You must return two things: an interpretive "summary", and a faithful, verbatim "description". Interpretation belongs ONLY in the summary.
+
+If you cannot extract the information because the HTML is a login page, CAPTCHA, or any other access restriction, respond with an empty result and an appropriate errorMessage.
+
+## summary field
+- Write a concise summary (maximum 1000 characters) so a user can quickly understand the role. This is the ONLY place where you may rephrase things in your own words.
+- If the user provided job search preferences, highlight how well the job matches them.
+- You may use markdown (bold, italics, lists) to improve readability.
+
+## description field
+- Reproduce the job description exactly as it appears on the page. This is a transcription, NOT a rewrite.
+- Do NOT paraphrase, reword, summarize, shorten, or "improve" the text. Keep the original sentences and phrasing exactly as written on the page.
+- Do NOT add, infer, or invent anything that is not on the page, and do NOT drop any sections.
+- Preserve the original structure: keep the page's section headings as markdown headings, and keep bullet or numbered lists as real markdown lists with ONE item per line. Never collapse a list into a running paragraph.
+- Your only job for this field is to faithfully translate the page's HTML into equivalent markdown (headings, bold, lists, links) — nothing else.
+- Include the complete description: responsibilities, requirements, benefits, pay/salary, education and experience, location and remote/on-site conditions, and any other sections present on the page.
+
+## tags field
+- Include up to 10 relevant tags or keywords for the job, if available.
+- If the salary mentions other benefits (e.g. stock options, bonuses), do not put them in the salary field — put them in tags instead.
+- Do not include the location, salary, or job type as tags.
+- Add the seniority level as a tag if available (e.g. junior, mid-level, senior, lead, principal).
+`;
+const turndownService = new turndown({
+  bulletListMarker: '-',
+  codeBlockStyle: 'fenced',
+});
+
+function stripNodes(root: Element, selectors: string[]) {
+  selectors.forEach((selector) => {
+    const elements = root.querySelectorAll(selector);
+    elements.forEach((el) => el.parentNode?.removeChild(el));
+  });
+}
+function stripAttributes(root: Element, dropAttrs: RegExp) {
+  const walker = root.querySelectorAll('*');
+  const elements = Array.from(walker) as Element[];
+  elements.forEach((el: Element) => {
+    [...el.attributes].forEach((attr) => {
+      if (dropAttrs.test(attr.name)) el.removeAttribute(attr.name);
+    });
+  });
+}
+
+function extractHeaderInfo(document: Element) {
+  const title = document.querySelector('title')?.textContent ?? '';
+  const metaDescription = document.querySelector("meta[name='description']")?.getAttribute('content') ?? '';
+
+  // try to grab the favicon with the highest resolution
+  const favicons = Array.from(
+    document.querySelectorAll("link[rel~='icon'], link[rel~='shortcut icon']") as unknown as Element[],
+  )
+    .map((el) => ({
+      href: el.getAttribute('href') ?? '',
+      sizes: el.getAttribute('sizes') ?? '',
+    }))
+    .filter((el) => el.href);
+  let faviconUrl;
+  if (favicons.length > 0) {
+    favicons.sort((a, b) => {
+      const sizeA = parseInt(a.sizes.split('x')[0]) || 0;
+      const sizeB = parseInt(b.sizes.split('x')[0]) || 0;
+      return sizeB - sizeA;
+    });
+    faviconUrl = favicons[0].href;
+  }
+
+  return { title, metaDescription, faviconUrl };
+}

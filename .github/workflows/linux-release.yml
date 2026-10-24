@@ -1,0 +1,124 @@
+name: Build Linux App
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build Linux packages
+        env:
+          APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MEZMO_API_KEY: ${{ secrets.MEZMO_API_KEY }}
+          AMPLITUDE_API_KEY: ${{ secrets.AMPLITUDE_API_KEY }}
+        run: |
+          pnpm make
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload to S3
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          # Get the version from package.json
+          VERSION=$(node -p "require('./apps/desktopProbe/package.json').version")
+
+          # Upload DEB file
+          aws s3 cp apps/desktopProbe/out/make/deb/x64/*.deb \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.deb \
+            --acl public-read
+
+          # Upload RPM file
+          aws s3 cp apps/desktopProbe/out/make/rpm/x64/*.rpm \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.rpm \
+            --acl public-read || echo "No RPM built"
+
+          # Upload Flatpak file
+          aws s3 cp apps/desktopProbe/out/make/flatpak/x86_64/*.flatpak \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.flatpak \
+            --acl public-read || echo "No Flatpak built"
+
+      - name: Update latest symlinks
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          VERSION=$(node -p "require('./apps/desktopProbe/package.json').version")
+
+          # Create "latest" versions for easy linking
+          aws s3 cp s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.deb \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-latest.deb \
+            --acl public-read
+            
+          aws s3 cp s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.rpm \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-latest.rpm \
+            --acl public-read || echo "No RPM found"
+            
+          aws s3 cp s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-${VERSION}.flatpak \
+            s3://${S3_BUCKET_NAME}/releases/linux/x64/first2apply-latest.flatpak \
+            --acl public-read || echo "No Flatpak found"
+
+      - name: Update RELEASES.json
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          VERSION=$(node -p "require('./apps/desktopProbe/package.json').version")
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          RELEASES_JSON="RELEASES.json"
+
+          # Download the existing RELEASES.json from S3
+          aws s3 cp s3://${S3_BUCKET_NAME}/releases/linux/x64/$RELEASES_JSON $RELEASES_JSON || echo '{"currentRelease": "", "releases": []}' > $RELEASES_JSON
+
+          # Update the RELEASES.json with the new release information
+          jq \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg name "First 2 Apply v$VERSION" \
+            --arg url "https://s3.eu-central-1.amazonaws.com/first2apply.com/releases/linux/x64/first2apply-$VERSION.deb" \
+            '.currentRelease = $version | .releases += [{
+              "version": $version,
+              "updateTo": {
+                "name": $name,
+                "version": $version,
+                "pub_date": $pub_date,
+                "url": $url,
+                "notes": ""
+              }
+            }]' $RELEASES_JSON > tmp.$$.json && mv tmp.$$.json $RELEASES_JSON
+
+          # Upload the updated RELEASES.json back to S3
+          aws s3 cp $RELEASES_JSON s3://${S3_BUCKET_NAME}/releases/linux/x64/$RELEASES_JSON

@@ -1,0 +1,20 @@
+{
+  "name": "@first2apply/landing-page",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port=3000 --webpack",
+    "typecheck": "tsc --noEmit",
+    "build": "next build --webpack",
+    "start": "next start --webpack",
+    "lint": "next lint",
+    "prettier": "npx prettier --check \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@first2apply/ui": "workspace:*",
+    "@next/third-parties": "14.2.0-canary.34",
+    "embla-carousel-autoplay": "^8.5.2",
+    "embla-carousel-react": "^8.5.2"
+  },
+  "devDependencies": {}
+}
