@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { useError } from '@/hooks/error';
-import { BOARD_SEARCH_URL_BUILDERS, DEFAULT_SEARCH_ALL_PROVIDERS } from '@/lib/boardSearchUrls';
+import { BOARD_SEARCH_URL_BUILDERS } from '@/lib/boardSearchUrls';
 import { scanLink } from '@/lib/electronMainSdk';
 import { getExceptionMessage } from '@first2apply/core';
 import {
@@ -44,8 +44,8 @@ export function SearchAllBoards({ open, onOpenChange }: { open: boolean; onOpenC
     [sites],
   );
   const [selected, setSelected] = useState<Set<number> | null>(null);
-  const selectedIds =
-    selected ?? new Set(boards.filter((b) => DEFAULT_SEARCH_ALL_PROVIDERS.includes(b.provider)).map((b) => b.id));
+  // every board starts ticked; untick the ones you don't want
+  const selectedIds = selected ?? new Set(boards.map((b) => b.id));
 
   const toggle = (siteId: number, checked: boolean) => {
     const next = new Set(selectedIds);

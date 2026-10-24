@@ -63,7 +63,7 @@ export class F2aSupabaseApi {
   sendPasswordResetEmail({ email }: { email: string }) {
     return this._supabaseApiCall(() =>
       this._supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "first2apply://reset-password",
+        redirectTo: "foundation://reset-password",
       })
     )
   }
@@ -321,6 +321,7 @@ export class F2aSupabaseApi {
       archived: countersMap.get("archived") ?? 0,
       applied: countersMap.get("applied") ?? 0,
       filtered: countersMap.get("excluded_by_advanced_matching") ?? 0,
+      deleted: countersMap.get("deleted") ?? 0,
       nextPageToken,
     }
   }

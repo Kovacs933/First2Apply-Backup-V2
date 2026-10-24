@@ -23,7 +23,7 @@ With no parameters the installer talks to `http://localhost:54321`, which only e
 2. Run `.\launcher\deploy-backend.ps1 -ProjectRef <ref>`. It logs in, creates the tables
    (`supabase\migrations\`) and job boards (`supabase\sites.sql`), uploads the secrets from
    `supabase\functions\.env`, deploys the functions and builds the installer against the project.
-3. In the Supabase dashboard > Authentication > URL Configuration, add `first2apply://**` to
+3. In the Supabase dashboard > Authentication > URL Configuration, add `foundation://**` to
    Redirect URLs (password-reset links open the app with it) and set Site URL to your website.
 4. Put `release\FoundationSetup.exe` on the website as the Windows download.
 

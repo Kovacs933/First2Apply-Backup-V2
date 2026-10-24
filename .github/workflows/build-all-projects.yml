@@ -1,9 +1,8 @@
 name: Build All Projects
 
+# Manual only: builds every app inherited from First 2 Apply (blog, landing page, ...), which
+# Foundation doesn't use, so running it on every push would just send failure emails.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:

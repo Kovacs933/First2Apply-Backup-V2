@@ -105,14 +105,3 @@ export const BOARD_SEARCH_URL_BUILDERS: Partial<Record<SiteProvider, (search: Bo
   [SiteProvider.jobsAcUk]: (s) =>
     `https://www.jobs.ac.uk/search/?${query({ keywords: s.keywords, location: s.location })}`,
 };
-
-/** Boards ticked by default: the general UK boards. Sector boards (NHS, charities, universities) are opt-in. */
-export const DEFAULT_SEARCH_ALL_PROVIDERS: SiteProvider[] = [
-  SiteProvider.linkedin,
-  SiteProvider.indeed,
-  SiteProvider.reed,
-  SiteProvider.totaljobs,
-  SiteProvider.cvLibrary,
-  SiteProvider.adzuna,
-  SiteProvider.workHub,
-];

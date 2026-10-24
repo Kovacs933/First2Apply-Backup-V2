@@ -1,10 +1,12 @@
-import { Cross2Icon, InfoCircledIcon, MinusCircledIcon } from '@radix-ui/react-icons';
-import { useEffect, useState } from 'react';
+import { Cross2Icon, MinusCircledIcon } from '@radix-ui/react-icons';
+import { useEffect, useMemo, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
 import { FiltersSkeleton } from '@/components/skeletons/filtersSkeleton';
 import { useError } from '@/hooks/error';
-import { getAdvancedMatchingConfig, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
+import { suggestFromDeletedJobs } from '@/lib/deletedJobSuggestions';
+import { getAdvancedMatchingConfig, listJobs, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
+import { Job } from '@first2apply/core';
 import { Alert, AlertDescription, AlertTitle } from '@first2apply/ui';
 import { Badge } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
@@ -19,10 +21,6 @@ const AI_RULE_EXAMPLES = [
   'Hide jobs paying less than £30,000 a year',
   'Hide senior, lead or manager roles',
   'Only show remote or hybrid jobs',
-  'Hide jobs that need a driving licence',
-  'Hide temporary and contract roles',
-  'Hide jobs asking for more than 3 years of experience',
-  'Hide recruitment agency adverts',
 ];
 
 export function FiltersPage() {
@@ -34,9 +32,11 @@ export function FiltersPage() {
   const [addBlacklistedCompany, setAddBlacklistedCompany] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showAllBlacklistedCompanies, setShowAllBlacklistedCompanies] = useState(false);
+  const [deletedJobs, setDeletedJobs] = useState<Job[]>([]);
 
   /**
-   * Load the advanced matching filters from the user's profile.
+   * Load the advanced matching filters from the user's profile, and the jobs they deleted
+   * (used to suggest rules).
    */
   useEffect(() => {
     const asyncLoad = async () => {
@@ -51,9 +51,25 @@ export function FiltersPage() {
       } finally {
         setIsLoading(false);
       }
+
+      try {
+        const { jobs } = await listJobs({ status: 'deleted', limit: 300 });
+        setDeletedJobs(jobs);
+      } catch (error) {
+        // suggestions are a nice-to-have, the page works without them
+        console.error(error);
+      }
     };
     asyncLoad();
   }, []);
+
+  // suggestions disappear as soon as they're added to the rules or hidden companies
+  const suggestions = useMemo(
+    () => suggestFromDeletedJobs({ deletedJobs, currentRules: userAiInput, hiddenCompanies: blacklistedCompanies }),
+    [deletedJobs, userAiInput, blacklistedCompanies],
+  );
+  const addRule = (rule: string) =>
+    setUserAiInput((current) => (current.trim() ? `${current.trimEnd()}\n${rule}` : rule));
 
   /**
    * Save the config to the database.
@@ -90,17 +106,54 @@ export function FiltersPage() {
           every new job advert and checks it against the rules you write below.
         </p>
         <ol className="max-w-3xl list-decimal space-y-1 pl-5 text-base">
-          <li>Write what you do and don't want in the first box, in plain English, one rule per line.</li>
-          <li>Optionally add companies you never want to see in the second box.</li>
+          <li>Write what you do and don't want in the first box, in plain English.</li>
           <li>
             Click <span className="font-medium">Save filters</span>. They apply to every new job from then on.
           </li>
-          <li>
-            Hidden jobs aren't deleted: they go to the <span className="font-medium">Filtered out</span> tab on the
-            Jobs page, with the reason, so you can check the AI got it right.
-          </li>
         </ol>
       </div>
+
+      {/* suggestions based on the jobs the user deleted */}
+      <section className="rounded-lg border border-border bg-card p-6">
+        <h2 className="mb-1 text-lg font-medium">Suggested for you</h2>
+        {suggestions.rules.length === 0 && suggestions.companies.length === 0 ? (
+          <p className="text-base text-muted-foreground">
+            {deletedJobs.length < 2
+              ? "Delete the jobs you're not interested in, and Foundation will suggest what to hide based on them."
+              : 'No new suggestions right now. Keep deleting jobs you don’t want and suggestions will appear here.'}
+          </p>
+        ) : (
+          <>
+            <p className="mb-3 text-base text-muted-foreground">
+              Based on the {deletedJobs.length} jobs you deleted. Click one to add it, then press Save filters.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.rules.map(({ rule, reason }) => (
+                <button
+                  key={rule}
+                  type="button"
+                  title={reason}
+                  className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-left text-sm hover:border-primary hover:bg-primary/10"
+                  onClick={() => addRule(rule)}
+                >
+                  + {rule} <span className="text-muted-foreground">({reason.toLowerCase()})</span>
+                </button>
+              ))}
+              {suggestions.companies.map(({ company, reason }) => (
+                <button
+                  key={company}
+                  type="button"
+                  title={reason}
+                  className="rounded-full border border-destructive/30 bg-destructive/5 px-3 py-1 text-left text-sm hover:border-destructive"
+                  onClick={() => setBlacklistedCompanies((current) => [...current, company])}
+                >
+                  + Hide {company} <span className="text-muted-foreground">({reason.toLowerCase()})</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
 
       <section>
         <h2 className="mb-1 text-lg font-medium">1. What are you looking for?</h2>
@@ -134,21 +187,12 @@ export function FiltersPage() {
           <span className="absolute bottom-4 right-4 text-sm text-muted-foreground">{userAiInput.length}/5000</span>
         </div>
 
-        <Alert className="flex items-center gap-2 border-0 p-0">
-          <AlertTitle className="mb-0">
-            <InfoCircledIcon className="h-4 w-4 text-muted-foreground" />
-          </AlertTitle>
-          <AlertDescription className="text-sm text-muted-foreground">
-            Good rules mention salary, experience level, skills, working pattern (remote, hybrid, part-time) or
-            contract type. Leave the box empty to switch the AI filter off.
-          </AlertDescription>
-        </Alert>
       </section>
 
       {/* HERE STARTS THE BLACKLISTING */}
 
       <section>
-        <h2 className="mb-1 text-lg font-medium">2. Companies to hide (optional)</h2>
+        <h2 className="mb-1 text-lg font-medium">2. Companies to hide</h2>
         <p className="mb-3 text-base text-muted-foreground">
           Type a company's name exactly as it appears on job adverts, then click Add company. You won't see their jobs
           again.

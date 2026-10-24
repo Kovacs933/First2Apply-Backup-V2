@@ -174,6 +174,7 @@ export async function listJobs({
     applied: number;
     archived: number;
     filtered: number;
+    deleted: number;
     nextPageToken?: string;
   }>('list-jobs', {
     status,

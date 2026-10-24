@@ -28,7 +28,7 @@ import { JobsList } from './jobsList';
 import { JobDetailsSkeleton, JobSummarySkeleton, JobsListSkeleton } from './jobsSkeleton';
 
 const JOB_BATCH_SIZE = 30;
-const ALL_JOB_STATUSES: JobStatus[] = ['new', 'applied', 'archived', 'excluded_by_advanced_matching'];
+const ALL_JOB_STATUSES: JobStatus[] = ['new', 'applied', 'archived', 'excluded_by_advanced_matching', 'deleted'];
 
 /**
  * Job tabs content component.
@@ -173,6 +173,12 @@ export function JobTabsContent({
             : listing.archived;
       const filteredCount =
         tabToDecrement === 'excluded_by_advanced_matching' ? listing.filtered - 1 : listing.filtered;
+      const deletedCount =
+        tabToIncrement === 'deleted'
+          ? listing.deleted + 1
+          : tabToDecrement === 'deleted'
+            ? listing.deleted - 1
+            : listing.deleted;
 
       return {
         ...listing,
@@ -181,6 +187,7 @@ export function JobTabsContent({
         applied: appliedCount,
         archived: archivedCount,
         filtered: filteredCount,
+        deleted: deletedCount,
       };
     });
   };

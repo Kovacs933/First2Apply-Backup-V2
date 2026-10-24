@@ -21,7 +21,7 @@ Next step — put the backend online so the installer works on other computers:
 Last attempt stopped because the Supabase account had no organisation; the setup now creates one
 automatically.
 
-After that, in the Supabase dashboard > Authentication > URL Configuration, add `first2apply://**`
+After that, in the Supabase dashboard > Authentication > URL Configuration, add `foundation://**`
 to Redirect URLs (needed for password-reset links).
 
 ## Shortcuts on the Desktop

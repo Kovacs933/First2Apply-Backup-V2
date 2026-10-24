@@ -36,7 +36,8 @@ app.userAgentFallback = app.userAgentFallback.replace(
   '',
 );
 
-const APP_PROTOCOL = 'first2apply';
+// Foundation's own link scheme (the original First 2 Apply app also registers first2apply://)
+const APP_PROTOCOL = 'foundation';
 let appIsRunning = false;
 const storage = new Storage<{
   width: number;

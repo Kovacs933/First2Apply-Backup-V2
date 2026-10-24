@@ -39,6 +39,7 @@ export type JobListing = {
   applied: number;
   archived: number;
   filtered: number;
+  deleted: number;
   nextPageToken?: string;
 };
 
@@ -67,6 +68,7 @@ export function JobTabs() {
     applied: 0,
     archived: 0,
     filtered: 0,
+    deleted: 0,
   });
 
   // Handle tab change
@@ -217,6 +219,28 @@ export function JobTabs() {
             `Filtered out ${`(${listing.filtered})`}`
           )}
         </TabsTrigger>
+        <TabsTrigger
+          value="deleted"
+          className={`flex flex-1 items-center px-6 py-3.5 focus-visible:ring-0 focus-visible:ring-offset-0 ${
+            status === 'deleted' ? 'justify-between' : 'justify-center'
+          }`}
+        >
+          {status === 'deleted' ? (
+            <>
+              <span className="w-6" />
+              <span>Deleted {`(${listing.deleted})`}</span>
+              <TabActions
+                tab="deleted"
+                onTabChange={onTabChange}
+                onCsvExport={onCsvExport}
+                onArchiveAll={onArchiveAll}
+                onDeleteAll={onDeleteAll}
+              />
+            </>
+          ) : (
+            `Deleted ${`(${listing.deleted})`}`
+          )}
+        </TabsTrigger>
       </TabsList>
 
       <JobTabsContent
@@ -284,13 +308,16 @@ function TabActions({
               Archive all
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem
-            className="cursor-pointer bg-destructive/5 focus:bg-destructive/20"
-            onClick={() => setIsDeleteAllDialogOpen(true)}
-          >
-            <TrashIcon className="-ml-0.5 mb-0.5 mr-2 inline-block h-5 w-5 text-destructive" />
-            Delete all
-          </DropdownMenuItem>
+          {/* jobs in the Deleted tab are already deleted */}
+          {tab !== 'deleted' && (
+            <DropdownMenuItem
+              className="cursor-pointer bg-destructive/5 focus:bg-destructive/20"
+              onClick={() => setIsDeleteAllDialogOpen(true)}
+            >
+              <TrashIcon className="-ml-0.5 mb-0.5 mr-2 inline-block h-5 w-5 text-destructive" />
+              Delete all
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -324,7 +351,7 @@ function TabActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete all {tab} jobs?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. You won't ever see these jobs again.
+              They'll move to the Deleted tab and won't show up in your other lists.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

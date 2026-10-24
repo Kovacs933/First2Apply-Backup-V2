@@ -24,7 +24,7 @@ import { DefaultLayout } from './defaultLayout';
 const MICROSOFT_APP_URL = '';
 
 // where feedback from the Feedback page is emailed
-const FEEDBACK_EMAIL = 'edwardhoffman95@gmail.com';
+const FEEDBACK_EMAIL = 'edwardhoffman951@gmail.com';
 
 const StarIcon = ({ filled = false }) => (
   <svg

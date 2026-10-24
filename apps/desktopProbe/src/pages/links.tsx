@@ -9,7 +9,18 @@ import { useError } from '@/hooks/error';
 import { getLinkScanHealth, scanAllLinks, scanLink } from '@/lib/electronMainSdk';
 import { LinkScanHealth } from '@/lib/types';
 import { throwError } from '@first2apply/core';
-import { useLinks } from '@first2apply/ui';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  useLinks,
+} from '@first2apply/ui';
 import { Button, toast } from '@first2apply/ui';
 
 import { DefaultLayout } from './defaultLayout';
@@ -87,6 +98,23 @@ export function LinksPage() {
     }
   };
 
+  // Delete every saved search (the jobs they already found are kept)
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const handleDeleteAllLinks = async () => {
+    setIsDeletingAll(true);
+    const count = links.length;
+    try {
+      for (const link of [...links]) {
+        await removeLink(link.id);
+      }
+      toast({ title: `Deleted ${count} job ${count === 1 ? 'search' : 'searches'}` });
+    } catch (error) {
+      handleError({ error, title: 'Some searches could not be deleted' });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const handleDebugLink = async (linkId: number) => {
     try {
       await browserWindowRef.current?.open(links.find((l) => l.id === linkId)?.url ?? throwError('Link not found'));
@@ -135,14 +163,45 @@ export function LinksPage() {
 
   return (
     <DefaultLayout className="p-6 md:p-10">
-      <div className="flex justify-between">
-        <div className="flex items-end">
-          <h1 className="text-2xl font-medium tracking-wide">Job Searches</h1>
-          {isScanning && <span className="ml-4 pb-1 text-xs">( currently scanning for new jobs )</span>}
+      {/* wraps onto two rows when the window is narrow, so the title and buttons never squash together */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-[12rem] flex-col">
+          <h1 className="whitespace-nowrap text-2xl font-medium tracking-wide">Job Searches</h1>
+          {isScanning && <span className="text-xs text-muted-foreground">Scanning for new jobs ...</span>}
         </div>
 
         {links.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="px-6 text-base text-destructive hover:text-destructive"
+                  disabled={isDeletingAll}
+                >
+                  {isDeletingAll ? 'Deleting ...' : 'Delete all'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete all {links.length} job searches?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Foundation will stop checking these searches for new jobs. Jobs already found stay on your Jobs
+                    page. This can't be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleDeleteAllLinks}
+                  >
+                    Yes, delete all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button variant="outline" size="lg" className="px-6 text-base" disabled={isScanning} onClick={handleScanAll}>
               {isScanning ? 'Scanning ...' : 'Scan now'}
             </Button>

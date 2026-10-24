@@ -32,7 +32,7 @@ const config: ForgeConfig = {
     protocols: [
       {
         name: 'Foundation',
-        schemes: ['first2apply'],
+        schemes: ['foundation'],
       },
     ],
     osxSign: {},
@@ -82,7 +82,7 @@ const config: ForgeConfig = {
         name: 'foundation',
         bin: 'Foundation',
         icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
-        mimeType: ['x-scheme-handler/first2apply'],
+        mimeType: ['x-scheme-handler/foundation'],
       },
     }),
     new MakerRpm({
@@ -90,7 +90,7 @@ const config: ForgeConfig = {
         name: 'foundation',
         bin: 'Foundation',
         icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
-        mimeType: ['x-scheme-handler/first2apply'],
+        mimeType: ['x-scheme-handler/foundation'],
       },
     }),
     new MakerFlatpak({
@@ -100,7 +100,7 @@ const config: ForgeConfig = {
         genericName: 'Job Search',
         icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
         categories: ['Utility'],
-        mimeType: ['x-scheme-handler/first2apply'],
+        mimeType: ['x-scheme-handler/foundation'],
         files: [],
       },
     }),
