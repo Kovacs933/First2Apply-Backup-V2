@@ -30,14 +30,11 @@ export async function checkUserSubscription({
     throw new Error('Profile not found');
   }
 
-  // check if the user's subscription has expired
-  const subscriptionHasExpired = new Date(profile.subscription_end_date) < new Date();
-  const hasProTier = profile.subscription_tier === 'pro';
-
+  // paywall removed: every user gets all features
   return {
     profile,
-    subscriptionHasExpired,
-    hasAdvancedMatching: hasProTier && !subscriptionHasExpired,
-    hasCustomJobsParsing: hasProTier && !subscriptionHasExpired,
+    subscriptionHasExpired: false,
+    hasAdvancedMatching: true,
+    hasCustomJobsParsing: true,
   };
 }
