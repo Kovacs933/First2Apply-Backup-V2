@@ -1,8 +1,8 @@
 {
   "name": "first2apply-desktop",
-  "productName": "First 2 Apply",
-  "version": "2.3.5",
-  "description": "First 2 Apply - Job Alert App | Instant Notifications for New Job Listings",
+  "productName": "Foundation",
+  "version": "1.0.0",
+  "description": "Foundation - UK job alerts from every major job board, in one place",
   "main": ".webpack/main",
   "scripts": {
     "start": "electron-forge start",
@@ -16,7 +16,7 @@
     "release": "npx release-it --ci"
   },
   "keywords": [],
-  "author": "BeastX Industries",
+  "author": "Foundation",
   "license": "MIT",
   "release-it": {
     "git": {

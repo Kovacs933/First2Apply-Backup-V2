@@ -37,7 +37,8 @@ export async function checkUserSubscription({
   return {
     profile,
     subscriptionHasExpired,
-    hasAdvancedMatching: hasProTier && !subscriptionHasExpired,
+    // Foundation gives AI advanced matching to every user, whatever their plan
+    hasAdvancedMatching: true,
     hasCustomJobsParsing: hasProTier && !subscriptionHasExpired,
   };
 }

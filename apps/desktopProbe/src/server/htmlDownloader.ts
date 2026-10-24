@@ -8,6 +8,22 @@ import { ILogger } from './logger';
 import { WorkerQueue } from './workerQueue';
 
 const KNOWN_AUTHWALLS = ['authwall', 'login'];
+// give up on a single page load after this long (some sites never fire the "loaded" event)
+const PAGE_LOAD_TIMEOUT_MS = 45_000;
+// how many times we try to load a page before reporting a failure
+const PAGE_LOAD_ATTEMPTS = 4;
+
+class PageLoadTimeoutError extends Error {}
+class AuthwallError extends Error {}
+
+/**
+ * Electron rejects loadURL with ERR_ABORTED (-3) when a page redirects or changes its url while loading
+ * (very common on job boards). The page is usually fine, so we don't treat it as a failure.
+ */
+function isAbortedNavigation(error: unknown) {
+  const message = getExceptionMessage(error);
+  return message.includes('ERR_ABORTED') || message.includes('(-3)');
+}
 
 /**
  * Wrapper over a headless window that can be used to download HTML.
@@ -131,7 +147,22 @@ export class HtmlDownloader {
         window.webContents.once('did-navigate', (event, url, httpResponseCode) => {
           statusCode = httpResponseCode;
         });
-        await window.loadURL(url);
+        let timeoutHandle: NodeJS.Timeout | undefined;
+        try {
+          await Promise.race([
+            window.loadURL(url).catch((error) => {
+              if (!isAbortedNavigation(error)) throw error;
+            }),
+            new Promise<never>((_, reject) => {
+              timeoutHandle = setTimeout(() => {
+                window.webContents.stop();
+                reject(new PageLoadTimeoutError(`page load timed out after ${PAGE_LOAD_TIMEOUT_MS / 1000}s`));
+              }, PAGE_LOAD_TIMEOUT_MS);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timeoutHandle);
+        }
 
         // handle rate limits
         const title = await window.webContents.executeJavaScript('document.title');
@@ -162,18 +193,23 @@ export class HtmlDownloader {
           const finalUrl = window.webContents.getURL();
           if (KNOWN_AUTHWALLS.some((authwall) => finalUrl?.includes(authwall))) {
             this._logger.debug(`authwall detected: ${finalUrl}`);
-            throw new Error('authwall');
+            throw new AuthwallError('authwall');
           }
         }
       },
       {
         jitter: 'full',
-        numOfAttempts: 20,
-        maxDelay: 5_000,
-        retry: (error) => {
-          if (error instanceof RateLimitError) {
+        numOfAttempts: PAGE_LOAD_ATTEMPTS,
+        startingDelay: 2_000,
+        maxDelay: 15_000,
+        retry: (error, attemptNumber) => {
+          // retrying won't help if we are rate limited or the site wants a login
+          if (error instanceof RateLimitError || error instanceof AuthwallError) {
             return false;
           }
+          this._logger.debug(
+            `retrying page load (${attemptNumber}/${PAGE_LOAD_ATTEMPTS}) for ${url}: ${getExceptionMessage(error)}`,
+          );
 
           // perform retries only if the window is still running
           return this._isRunning;

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@first2apply/ui';
 
+import { LinkScanHealth } from '../lib/types';
 import { EditLink } from './editLink';
 
 const scrapeFailureThreshold = 3;
@@ -17,8 +18,10 @@ export function LinksList({
   onDeleteLink,
   onDebugLink,
   onUpdateLink,
+  scanHealth = {},
 }: {
   links: Link[];
+  scanHealth?: Record<number, LinkScanHealth>;
   onDeleteLink: (linkId: number) => void;
   onDebugLink: (linkId: number) => void;
   onUpdateLink: (data: { linkId: number; title: string }) => Promise<void>;
@@ -28,7 +31,8 @@ export function LinksList({
 
   const [editedLink, setEditedLink] = useState<Link | null>(null);
 
-  const isInFailureState = (link: Link) => link.scrape_failure_count >= scrapeFailureThreshold;
+  const isInFailureState = (link: Link) =>
+    link.scrape_failure_count >= scrapeFailureThreshold || (scanHealth[link.id]?.consecutiveFailures ?? 0) >= 2;
 
   return (
     <>
@@ -59,6 +63,9 @@ export function LinksList({
                 </div>
               </div>
 
+              {/* scan health: result of the most recent scan on this computer */}
+              <ScanHealthLine health={scanHealth[link.id]} />
+
               {/* <p className="mb-4 mt-6 grow whitespace-pre-wrap text-pretty break-all text-xs text-muted-foreground">
               {link.url}
             </p> */}
@@ -66,7 +73,7 @@ export function LinksList({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-light text-foreground/40">
-                    {'Last checked '}
+                    {'Last successful check '}
                     <ReactTimeAgo date={new Date(link.last_scraped_at)} locale="en-US" />
                   </p>
                   <p className="text-xs font-light text-foreground/40">
@@ -166,5 +173,36 @@ export function LinksList({
         }}
       />
     </>
+  );
+}
+
+/**
+ * One-line summary of the last scan of a search: OK + jobs found, or the reason it failed.
+ */
+function ScanHealthLine({ health }: { health?: LinkScanHealth }) {
+  if (!health) {
+    return <p className="text-xs text-muted-foreground">Not scanned on this computer yet.</p>;
+  }
+
+  if (health.lastError) {
+    return (
+      <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <p className="font-medium">
+          {'Last scan failed '}
+          <ReactTimeAgo date={new Date(health.lastScanAt)} locale="en-US" />
+          {health.consecutiveFailures > 1 ? ` (${health.consecutiveFailures} times in a row)` : ''}
+        </p>
+        <p>{health.lastError}</p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="text-xs text-muted-foreground">
+      {'Last scan OK '}
+      <ReactTimeAgo date={new Date(health.lastScanAt)} locale="en-US" />
+      {` · ${health.lastNewJobsCount} new job${health.lastNewJobsCount === 1 ? '' : 's'}`}
+      {` · ${health.totalNewJobsCount} found in total`}
+    </p>
   );
 }

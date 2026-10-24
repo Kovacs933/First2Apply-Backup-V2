@@ -2,6 +2,7 @@ import { JobSite, Link, SiteProvider, WebPageRuntimeData } from '@first2apply/co
 import { getExceptionMessage } from '@first2apply/core';
 
 import { CORS_HEADERS } from '../_shared/cors.ts';
+import { filterCrossBoardDuplicates } from '../_shared/crossBoardDedupe.ts';
 import { EdgeFunctionAuthorizedContext, getEdgeFunctionContext } from '../_shared/edgeFunctions.ts';
 import { parseJobsListUrl } from '../_shared/jobListParser.ts';
 import { createLoggerWithMeta } from '../_shared/logger.ts';
@@ -84,10 +85,13 @@ Deno.serve(async (req) => {
         }),
       ).then((r) => r.flat());
 
+      // skip jobs the user already has from another job board (or reposts with a new id)
+      const uniqueJobs = await filterCrossBoardDuplicates({ jobs: parsedJobs, userId, supabaseClient, logger });
+
       const { data: upsertedJobs, error: insertError } = await supabaseClient
         .from('jobs')
         .upsert(
-          parsedJobs.map((job) => ({
+          uniqueJobs.map((job) => ({
             ...job,
             status: 'processing' as const,
             // ensure tags is not null

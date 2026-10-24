@@ -7,4 +7,5 @@ export const ENV = {
   },
   mezmoApiKey: process.env.MEZMO_API_KEY,
   amplitudeApiKey: process.env.AMPLITUDE_API_KEY,
+  updateFeedUrl: process.env.UPDATE_FEED_URL,
 };

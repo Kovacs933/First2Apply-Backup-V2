@@ -80,6 +80,30 @@ const SITE_PROVIDER_QUERY_SELECTORS: Record<SiteProvider, SiteProviderQuerySelec
   [SiteProvider.hiringCafe]: {
     description: ['article.prose', 'article[class*="prose"]'],
   },
+  [SiteProvider.reed]: {
+    description: ['[data-qa="job-description"]', '[itemprop="description"]'],
+  },
+  [SiteProvider.totaljobs]: {
+    description: ['[data-at="job-ad-content"]', '[data-at="section-text-jobDescription-content"]'],
+  },
+  [SiteProvider.cvLibrary]: {
+    description: ['[class*="JobView_jobDescription"]', '.job__description'],
+  },
+  [SiteProvider.adzuna]: {
+    description: ['section.adp-body', '.adp-body'],
+  },
+  [SiteProvider.nhsJobs]: {
+    description: ['#maincontent .wrap-paragraphs'],
+  },
+  [SiteProvider.workHub]: {
+    description: ['.rawHtmlContainer'],
+  },
+  [SiteProvider.charityJob]: {
+    description: ['.job-description'],
+  },
+  [SiteProvider.jobsAcUk]: {
+    description: ['#job-description'],
+  },
   [SiteProvider.custom]: {
     description: ['#job-description'],
   },
@@ -148,6 +172,16 @@ export async function parseJobDescriptionUpdates({
       return parseTalentJobDescription({ html });
     case SiteProvider.hiringCafe:
       return parseHiringCafeJobDescription({ html });
+    case SiteProvider.nhsJobs:
+      return parseNhsJobDescription({ html });
+    case SiteProvider.reed:
+    case SiteProvider.totaljobs:
+    case SiteProvider.cvLibrary:
+    case SiteProvider.adzuna:
+    case SiteProvider.workHub:
+    case SiteProvider.charityJob:
+    case SiteProvider.jobsAcUk:
+      return parseJobDescriptionWithSelectors({ provider: site.provider, html });
     case SiteProvider.custom:
       return await parseCustomJobDescription({ html, user, job, ...context });
   }
@@ -283,7 +317,8 @@ function parseIndeedJobDescription({ html }: { html: string }): JobDescriptionUp
           if (salaryModel.salaryText) {
             salary = salaryModel.salaryText;
           } else if (salaryModel.salaryMin && salaryModel.salaryMax) {
-            const currency = salaryModel.salaryCurrency === 'USD' ? '$' : '';
+            const currency =
+              ({ USD: '$', GBP: '£', EUR: '€' } as Record<string, string>)[salaryModel.salaryCurrency] ?? '';
             const type =
               salaryModel.salaryType === 'HOURLY'
                 ? ' per hour'
@@ -640,6 +675,49 @@ function parseTalentJobDescription({ html }: { html: string }): JobDescriptionUp
 
   let description: string | undefined;
   if (descriptionContainer) {
+    description = turndownService.turndown(descriptionContainer.innerHTML);
+  }
+
+  return {
+    description,
+  };
+}
+
+/**
+ * Parse a job description for boards that only need their description selectors (most UK boards).
+ */
+function parseJobDescriptionWithSelectors({
+  provider,
+  html,
+}: {
+  provider: SiteProvider;
+  html: string;
+}): JobDescriptionUpdates {
+  const { descriptionContainer } = extractCommonDomElements({ provider, html });
+
+  let description: string | undefined;
+  if (descriptionContainer) {
+    description = turndownService.turndown(descriptionContainer.innerHTML);
+  }
+
+  return {
+    description,
+  };
+}
+
+/**
+ * Parse an NHS Jobs advert. The page repeats every section twice (a mobile and a desktop
+ * version), so the mobile copies are removed before converting it.
+ */
+function parseNhsJobDescription({ html }: { html: string }): JobDescriptionUpdates {
+  const { descriptionContainer } = extractCommonDomElements({
+    provider: SiteProvider.nhsJobs,
+    html,
+  });
+
+  let description: string | undefined;
+  if (descriptionContainer) {
+    (Array.from(descriptionContainer.querySelectorAll('.show-mobile')) as Element[]).forEach((el) => el.remove());
     description = turndownService.turndown(descriptionContainer.innerHTML);
   }
 

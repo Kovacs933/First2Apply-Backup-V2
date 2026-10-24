@@ -88,8 +88,8 @@ export function HelpPage() {
       <div className="flex items-center justify-end gap-4">
         <p className="text-base">
           Didn't find what you need? You can send us an email at{' '}
-          <a href="mailto:contact@first2apply.com" className="text-primary underline">
-            contact@first2apply.com
+          <a href="mailto:edwardhoffman95@gmail.com" className="text-primary underline">
+            edwardhoffman95@gmail.com
           </a>
         </p>
       </div>

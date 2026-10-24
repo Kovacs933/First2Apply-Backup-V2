@@ -1,7 +1,7 @@
 import { DOMParser, Element } from 'deno-dom-wasm';
 
 import { JobSiteParseResult, ParsedJob } from '../parsers/parserTypes.ts';
-import { isSalaryText } from './parserHelpers.ts';
+import { safeMapJobs, isSalaryText } from './parserHelpers.ts';
 
 /**
  * Matches the relative date dice appends to the location line, ex: `Today`, `2d ago`, `3 days ago`.
@@ -115,7 +115,7 @@ export function parseDiceJobs({ siteId, html }: { siteId: number; html: string }
     };
   };
 
-  const jobs = jobElements.map(parseJob);
+  const jobs = safeMapJobs(jobElements, parseJob);
   const validJobs = jobs.filter((job): job is ParsedJob => !!job);
 
   return {

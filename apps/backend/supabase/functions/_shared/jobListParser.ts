@@ -1,5 +1,5 @@
 import { JobSite, WebPageRuntimeData } from '@first2apply/core';
-import { throwError } from '@first2apply/core';
+import { getExceptionMessage, throwError } from '@first2apply/core';
 import { DbSchema, JobType, Link, SiteProvider, User } from '@first2apply/core';
 import { SupabaseClient } from '@supabase/supabasefork';
 import { DOMParser, Element } from 'deno-dom-wasm';
@@ -14,7 +14,18 @@ import { parseHiringCafeJobs } from './parsers/hiringCafe.ts';
 import { parseLinkedInJobs } from './parsers/linkedin.ts';
 import { JobSiteParseResult, ParsedJob } from './parsers/parserTypes.ts';
 import { parseRemoteioJobs } from './parsers/remoteio.ts';
+import {
+  parseAdzunaJobs,
+  parseCharityJobJobs,
+  parseCvLibraryJobs,
+  parseJobsAcUkJobs,
+  parseNhsJobs,
+  parseReedJobs,
+  parseTotaljobsJobs,
+  parseWorkHubJobs,
+} from './parsers/ukBoards.ts';
 import { checkUserSubscription } from './subscription.ts';
+import { safeMapJobs, safeMapJobsAsync, cleanParsedJobs } from './parsers/parserHelpers.ts';
 
 const turndownService = new turndown({
   bulletListMarker: '-',
@@ -44,24 +55,34 @@ function parseLocation({ location }: { location?: string }): string | undefined 
 }
 
 /**
+ * Country domain endings made of two parts, ex: "reed.co.uk" belongs to "reed", not "co".
+ */
+const MULTI_PART_DOMAIN_SUFFIXES = ['co.uk', 'org.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'com.au', 'co.nz', 'co.in', 'co.za'];
+
+/**
  * Get the site for a given url.
  */
 export function getJobSite({
   allJobSites,
   url,
   hasCustomJobsParsing,
+  skipSearchParamsCheck = false,
 }: {
   allJobSites: JobSite[];
   url: string;
   hasCustomJobsParsing: boolean;
+  /** when true ("Save Anyway"), don't reject URLs that look like a board's home page */
+  skipSearchParamsCheck?: boolean;
 }): JobSite {
+  // match boards by their brand name so country versions share one site
+  // (uk.indeed.com = indeed.com, glassdoor.co.uk = glassdoor.com)
   const getUrlDomain = (url: string) => {
-    const hostname = new URL(url).hostname.replace('emplois.', '');
-    const parts = hostname.split('.').reverse();
-    while (parts.length > 3) parts.shift();
-    const [_, domain] = parts;
-    _;
-    return domain;
+    const hostname = new URL(url).hostname.replace('emplois.', '').replace(/^www\./, '');
+    // gov.uk, ac.uk and nhs.uk host many unrelated services, so use the full host name for them
+    if (/\.(gov|ac|nhs)\.uk$/.test(hostname)) return hostname;
+    const parts = hostname.split('.');
+    const suffixLength = MULTI_PART_DOMAIN_SUFFIXES.some((suffix) => hostname.endsWith(`.${suffix}`)) ? 2 : 1;
+    return parts[parts.length - suffixLength - 1] ?? hostname;
   };
 
   const urlDomain = getUrlDomain(url);
@@ -72,17 +93,23 @@ export function getJobSite({
     });
   });
 
-  // check if the path is blacklisted
+  // check if the path is blacklisted (e.g. the board's home page instead of a search results page)
   const parsedUrl = new URL(url);
-  site?.blacklisted_paths.forEach((path) => {
+  if (site && !skipSearchParamsCheck) {
     const pathname = parsedUrl.pathname.toLowerCase();
-    const blacklistedPath = path.toLowerCase();
-    if (pathname === blacklistedPath || pathname + '/' === blacklistedPath) {
+    const isBlacklisted = (site.blacklisted_paths ?? []).some((path) => {
+      const blacklistedPath = path.toLowerCase();
+      return pathname === blacklistedPath || pathname + '/' === blacklistedPath;
+    });
+    if (isBlacklisted) {
       throw new Error(
-        `Looks like the URL you are trying to save does not contain any search params. Make sure to configure your desired filters like role/tech stach, location, etc. on ${parsedUrl.hostname} and try again. Optionally add the last 24h filter when possible.`,
+        `This looks like the ${site.name} home page, not a list of search results. ` +
+          `On ${parsedUrl.hostname}, type a job title (and a location if you want), press Search, ` +
+          `and save once you can see a list of jobs. Tip: add a "Last 24 hours" filter if the site has one. ` +
+          `If you're sure this page is right, click "Save Anyway".`,
       );
     }
-  });
+  }
 
   // if no site is found, use the custom site if enabled
   // it's enabled if the user is on the PRO plan
@@ -91,7 +118,7 @@ export function getJobSite({
   } else if (!site) {
     const parsedUrl = new URL(url);
     throw new Error(
-      `Scanning for jobs on ${parsedUrl.hostname} is only available on the PRO plan. Please contact support if you think this is a mistake.`,
+      `${parsedUrl.hostname} isn't one of the supported job boards yet. Open a search from one of the job boards listed under "Add Search" (for example LinkedIn, Indeed, Reed or Totaljobs) and save the results page.`,
     );
   }
 
@@ -105,12 +132,14 @@ export function cleanJobUrl({
   allJobSites,
   url,
   hasCustomJobsParsing,
+  skipSearchParamsCheck = false,
 }: {
   allJobSites: JobSite[];
   url: string;
   hasCustomJobsParsing: boolean;
+  skipSearchParamsCheck?: boolean;
 }) {
-  const site = getJobSite({ allJobSites, url, hasCustomJobsParsing });
+  const site = getJobSite({ allJobSites, url, hasCustomJobsParsing, skipSearchParamsCheck });
   let cleanUrl = url;
 
   if (site.queryParamsToRemove) {
@@ -125,6 +154,13 @@ export function cleanJobUrl({
   if (site.provider === SiteProvider.linkedin) {
     const parsedUrl = new URL(cleanUrl);
     parsedUrl.searchParams.set('sortBy', 'DD');
+    cleanUrl = parsedUrl.toString();
+  }
+
+  // same for NHS Jobs, which otherwise sorts by relevance
+  if (site.provider === SiteProvider.nhsJobs) {
+    const parsedUrl = new URL(cleanUrl);
+    parsedUrl.searchParams.set('sort', 'publicationDateDesc');
     cleanUrl = parsedUrl.toString();
   }
 
@@ -165,14 +201,24 @@ export async function parseJobsListUrl({
   }
 
   context.logger.addMeta('provider', site.provider);
-  const { jobs, listFound, elementsCount, llmApiCallCost } = await parseSiteJobsList({
-    site,
-    html,
-    webPageRuntimeData,
-    url,
-    ...context,
-  });
+  let parseResult: JobSiteParseResult;
+  try {
+    parseResult = await parseSiteJobsList({
+      site,
+      html,
+      webPageRuntimeData,
+      url,
+      ...context,
+    });
+  } catch (error) {
+    // a crash inside a parser should be reported as a failed scan for this link only,
+    // instead of failing the whole request (and every other link scanned with it)
+    context.logger.error(`[${site.provider}] parser crashed for link ${link.id}: ${getExceptionMessage(error)}`);
+    return { jobs: [] as ParsedJob[], site, parseFailed: true, llmApiCallCost: undefined };
+  }
 
+  const { listFound, elementsCount, llmApiCallCost } = parseResult;
+  const jobs = cleanParsedJobs(parseResult.jobs, url);
   const parseFailed = !listFound || (elementsCount > 0 && jobs.length === 0);
 
   return { jobs, site, parseFailed, llmApiCallCost };
@@ -203,7 +249,7 @@ async function parseSiteJobsList({
     case SiteProvider.glassdoor:
       return parseGlassDoorJobs({ siteId: site.id, html });
     case SiteProvider.indeed:
-      return parseIndeedJobs({ siteId: site.id, html });
+      return parseIndeedJobs({ siteId: site.id, html, url });
     case SiteProvider.remoteok:
       return parseRemoteOkJobs({ siteId: site.id, html });
     case SiteProvider.weworkremotely:
@@ -234,6 +280,22 @@ async function parseSiteJobsList({
       return parseTalentJobs({ siteId: site.id, html });
     case SiteProvider.hiringCafe:
       return parseHiringCafeJobs({ siteId: site.id, html });
+    case SiteProvider.reed:
+      return parseReedJobs({ siteId: site.id, html });
+    case SiteProvider.totaljobs:
+      return parseTotaljobsJobs({ siteId: site.id, html });
+    case SiteProvider.cvLibrary:
+      return parseCvLibraryJobs({ siteId: site.id, html });
+    case SiteProvider.adzuna:
+      return parseAdzunaJobs({ siteId: site.id, html });
+    case SiteProvider.nhsJobs:
+      return parseNhsJobs({ siteId: site.id, html });
+    case SiteProvider.workHub:
+      return parseWorkHubJobs({ siteId: site.id, html });
+    case SiteProvider.charityJob:
+      return parseCharityJobJobs({ siteId: site.id, html });
+    case SiteProvider.jobsAcUk:
+      return parseJobsAcUkJobs({ siteId: site.id, html });
     case SiteProvider.custom:
       return parseCustomJobs({ siteId: site.id, html, url, ...context });
   }
@@ -257,7 +319,7 @@ export function parseRemoteOkJobs({ siteId, html }: { siteId: number; html: stri
 
   const jobElements = Array.from(jobsList.querySelectorAll('tr.job')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const externalId = el.getAttribute('data-slug')?.trim();
     if (!externalId) return null;
     const externalUrl = `https://remoteok.io/remote-jobs/${externalId}`.trim();
@@ -359,7 +421,7 @@ export function parseWeWorkRemotelyJobs({ siteId, html }: { siteId: number; html
   //   jobsList
   // ).map(l => l.querySelectorAll("ul > li")) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const linkToJob = el.querySelector(':scope > a');
     if (!linkToJob) return null;
 
@@ -462,7 +524,7 @@ export function parseGlassDoorJobs({ siteId, html }: { siteId: number; html: str
 
   const jobElements = Array.from(jobsList.querySelectorAll(':scope > li')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const externalId = el.getAttribute('data-jobid')?.trim();
     if (!externalId) return null;
 
@@ -472,13 +534,14 @@ export function parseGlassDoorJobs({ siteId, html }: { siteId: number; html: str
     const title = el.querySelector(`#job-title-${externalId}`)?.textContent?.trim() || '';
     if (!title) return null;
 
-    const companyName = el.querySelector('.jobCard .EmployerProfile_profileContainer__63w3R')?.textContent?.trim();
+    // the profile container also holds the company rating, so prefer the name element on its own
+    const companyName = (
+      el.querySelector('[class*="EmployerProfile_compactEmployerName"]') ??
+      el.querySelector('.jobCard .EmployerProfile_profileContainer__63w3R')
+    )?.textContent?.trim();
     if (!companyName) return null;
 
-    const companyLogo = el
-      .querySelector('.jobCard .EmployerLogo_logoContainer__7hw16 > img')
-      ?.getAttribute('src')
-      ?.trim();
+    const companyLogo = el.querySelector('[class*="EmployerLogo_logoContainer"] img')?.getAttribute('src')?.trim();
 
     const location = el.querySelector(`#job-location-${externalId}`)?.textContent?.trim();
 
@@ -514,9 +577,26 @@ export function parseGlassDoorJobs({ siteId, html }: { siteId: number; html: str
 /**
  * Method used to parse a indeed job page.
  */
-export function parseIndeedJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+export function parseIndeedJobs({
+  siteId,
+  html,
+  url,
+}: {
+  siteId: number;
+  html: string;
+  url?: string;
+}): JobSiteParseResult {
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) throw new Error('Could not parse html');
+
+  // link jobs to the same country site the search was made on (ex: uk.indeed.com)
+  let indeedOrigin = 'https://www.indeed.com';
+  try {
+    const searchUrl = url ? new URL(url) : undefined;
+    if (searchUrl?.hostname.includes('indeed.')) indeedOrigin = searchUrl.origin;
+  } catch {
+    // keep the default origin
+  }
 
   // check if the list is empty first
   const noResultsNode =
@@ -541,7 +621,7 @@ export function parseIndeedJobs({ siteId, html }: { siteId: number; html: string
 
   const jobElements = Array.from(jobsList.querySelectorAll(':scope > li')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobLinkEl = el.querySelector('.jobTitle > a');
     if (!jobLinkEl) return null;
 
@@ -553,7 +633,7 @@ export function parseIndeedJobs({ siteId, html }: { siteId: number; html: string
 
     const jk = jobLinkEl.getAttribute('data-jk')?.trim();
     if (!jk) return null;
-    const externalUrl = `https://www.indeed.com/viewjob?jk=${jk}`;
+    const externalUrl = `${indeedOrigin}/viewjob?jk=${jk}`;
 
     const title = jobLinkEl?.querySelector('span')?.textContent?.trim() || '';
     if (!title) return null;
@@ -576,32 +656,11 @@ export function parseIndeedJobs({ siteId, html }: { siteId: number; html: string
       .replace(/\sin\s/i, '')
       .trim();
 
-    let salary = el
-      .querySelector('.salary-snippet-container')
-      ?.textContent?.trim()
-      ?.replace(/a year/, '')
-      ?.trim();
-    if (salary?.includes('hour')) {
-      salary = parseSalary({ salary: salary }) + '/hr';
-    } else {
-      salary = salary
-        ?.replace(/a year/, '')
-        ?.trim()
-        ?.split('-')
-        .map(
-          (s) =>
-            `$${Math.round(
-              parseInt(
-                s
-                  .trim()
-                  .slice(1)
-                  .replace(/\.[0-9]+/i, '')
-                  .replace(/,/i, ''),
-              ) / 1000,
-            )}k`,
-        )
-        .join(' - ');
-    }
+    // indeed moved the salary from a class to a data-testid, support both
+    const salaryText = (
+      el.querySelector('[data-testid*="salary-snippet-container"]') ?? el.querySelector('.salary-snippet-container')
+    )?.textContent?.trim();
+    const salary = formatIndeedSalary(salaryText);
 
     return {
       siteId,
@@ -626,6 +685,26 @@ export function parseIndeedJobs({ siteId, html }: { siteId: number; html: string
 }
 
 /**
+ * Shorten an indeed salary while keeping its currency,
+ * ex: "£35,000 - £40,000 a year" -> "£35k - £40k", "£12.50 an hour" -> "£12.50/hr".
+ */
+function formatIndeedSalary(salary?: string): string | undefined {
+  if (!salary || !/\d/.test(salary)) return undefined;
+
+  const lower = salary.toLowerCase();
+  if (lower.includes('hour')) return parseSalary({ salary }) + '/hr';
+  // daily, weekly and monthly pay can't be shortened to "k" without being misleading
+  if (!lower.includes('year')) return salary;
+
+  const currency = salary.match(/[£$€]/)?.[0] ?? '$';
+  const prefix = /^from/i.test(salary) ? 'From ' : /^up to/i.test(salary) ? 'Up to ' : '';
+  const amounts = (salary.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map(
+    (amount) => `${currency}${Math.round(parseFloat(amount.replace(/,/g, '')) / 1000)}k`,
+  );
+  return amounts.length ? prefix + amounts.join(' - ') : salary;
+}
+
+/**
  * Method used to parse a flexjobs job page.
  */
 export function parseFlexjobsJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
@@ -642,7 +721,7 @@ export function parseFlexjobsJobs({ siteId, html }: { siteId: number; html: stri
 
   const jobElements = Array.from(jobsList.querySelectorAll(':scope > div')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     el = el.querySelector(':scope > div') as Element;
     const externalId = el?.getAttribute('id')?.trim();
     if (!externalId) return null;
@@ -720,7 +799,7 @@ export function parseBestjobsJobs({ siteId, html }: { siteId: number; html: stri
 
   const jobElements = Array.from(jobsList.querySelectorAll('.job-card')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const externalUrl = el.querySelector('.card-body > div:first-child > a')?.getAttribute('href')?.trim();
     if (!externalUrl) return null;
 
@@ -795,7 +874,7 @@ export function parseEchojobsJobs({ siteId, html }: { siteId: number; html: stri
 
   const jobElements = Array.from(jobsList.querySelectorAll('tr')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobInfo = el.querySelector('td > div');
     if (!jobInfo) return null;
 
@@ -872,7 +951,7 @@ export function parseRemotiveJobs({ siteId, html }: { siteId: number; html: stri
     jobElements = Array.from(jobsList.querySelectorAll('div[x-data]')) as Element[];
   }
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobTitle = el?.querySelector('.job-tile-title a');
     if (!jobTitle) return null;
 
@@ -936,7 +1015,7 @@ export function parseBuiltinJobs({ siteId, html }: { siteId: number; html: strin
 
   const jobElements = Array.from(jobsList.querySelectorAll('[data-id="job-card"]')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobInfo = el.querySelector('h2 > a');
     if (!jobInfo) return null;
 
@@ -1017,7 +1096,7 @@ export function parseNaukriJobs({ siteId, html }: { siteId: number; html: string
 
   const jobElements = Array.from(jobsList.querySelectorAll('.srp-jobtuple-wrapper')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobInfo = el.querySelector('.title');
     if (!jobInfo) return null;
 
@@ -1088,7 +1167,7 @@ export function parseRobertHalfJobs({ siteId, html }: { siteId: number; html: st
     };
   const jobElements = Array.from(jobsList.querySelectorAll('rhcl-job-card')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const externalId = el.getAttribute('job-id')?.trim();
     if (!externalId) return null;
 
@@ -1107,12 +1186,16 @@ export function parseRobertHalfJobs({ siteId, html }: { siteId: number; html: st
     const salaryPeriod = el.getAttribute('salary-period')?.trim();
     let salary = undefined;
     if (salaryMin && salaryMax && salaryMax !== '0' && salaryMin !== '0') {
+      const currencySymbol = ({ GBP: '£', USD: '$', EUR: '€' } as Record<string, string>)[salaryCurrency ?? ''];
       const formatValue = (value: string) => {
         const denominator = salaryPeriod?.toLowerCase().includes('hour') ? 1 : 1000;
         const suffix = salaryPeriod?.toLowerCase().includes('hour') ? '' : 'k';
-        return `${parseFloat(value) / denominator}${suffix}`;
+        const amount = `${parseFloat(value) / denominator}${suffix}`;
+        return currencySymbol ? `${currencySymbol}${amount}` : amount;
       };
-      salary = `${salaryCurrency} ${formatValue(salaryMin)} - ${formatValue(salaryMax)} ${salaryPeriod}`.trim();
+      const range =
+        salaryMin === salaryMax ? formatValue(salaryMin) : `${formatValue(salaryMin)} - ${formatValue(salaryMax)}`;
+      salary = `${currencySymbol || !salaryCurrency ? '' : `${salaryCurrency} `}${range} ${salaryPeriod ?? ''}`.trim();
     }
 
     const worksite = el.getAttribute('worksite')?.trim().toLowerCase();
@@ -1176,7 +1259,7 @@ async function parseZipRecruiterJobs({ siteId, html }: { siteId: number; html: s
   ) as Element[];
 
   const parseJobsListRow = (elements: Element[]) => {
-    return elements.map((el): ParsedJob | null => {
+    return safeMapJobs(elements, (el): ParsedJob | null => {
       const externalUrlEl = el.querySelector('a.jobList-title');
       const externalUrl = externalUrlEl?.getAttribute('href')?.trim();
       if (!externalUrl) return null;
@@ -1207,8 +1290,8 @@ async function parseZipRecruiterJobs({ siteId, html }: { siteId: number; html: s
   };
 
   const parseJobsListUs = async (elements: Element[]) => {
-    return await Promise.all(
-      elements.map(async (el): Promise<ParsedJob | null> => {
+    return await safeMapJobsAsync(
+      elements, async (el): Promise<ParsedJob | null> => {
         const externalUrlEl = el.querySelector('h2 > a');
         const externalUrl = externalUrlEl?.getAttribute('href')?.trim();
         if (!externalUrl) return null;
@@ -1243,7 +1326,7 @@ async function parseZipRecruiterJobs({ siteId, html }: { siteId: number; html: s
           labels: [],
           tags: [],
         };
-      }),
+      },
     );
   };
 
@@ -1273,7 +1356,7 @@ export function parseUSAJobsJobs({ siteId, html }: { siteId: number; html: strin
     };
   const jobElements = Array.from(jobsList.querySelectorAll('.page-section')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const titleElement = el.querySelector('h2 a[data-document-id]');
 
     const externalId = titleElement?.getAttribute('data-document-id')?.trim();
@@ -1336,7 +1419,7 @@ export function parseTalentJobs({ siteId, html }: { siteId: number; html: string
 
   const jobElements = Array.from(jobsList.querySelectorAll('.card__job')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const externalUrlPath = el.querySelector('.link-job-wrap')?.getAttribute('data-link')?.trim();
     if (!externalUrlPath) return null;
     const externalUrl = `https://talent.com${externalUrlPath}`;

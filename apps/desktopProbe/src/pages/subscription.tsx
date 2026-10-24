@@ -47,6 +47,9 @@ export function SubscriptionPage() {
    */
   const handleSelectPlan = ({ tier, billingCycle }: { tier: SubscriptionTier; billingCycle: string }) => {
     try {
+      if (!stripeConfig.customerPortalLink) {
+        throw new Error("Upgrades aren't available yet.");
+      }
       const stripePlan = stripeConfig.plans.find((p) => p.tier === tier);
 
       if (!stripePlan) {
@@ -95,7 +98,7 @@ export function SubscriptionPage() {
               <CardDescription></CardDescription>
             </CardHeader>
             <CardContent className="md:p-8 md:pt-2">
-              <p>We hope you landed your dream job with First 2 Apply.</p>
+              <p>We hope you landed your dream job with Foundation.</p>
               <p className="mb-8">
                 Just in case you still need to use the app, you can renew your plan or switch to a different one.
               </p>

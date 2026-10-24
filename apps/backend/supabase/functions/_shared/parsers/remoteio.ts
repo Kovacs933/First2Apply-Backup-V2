@@ -1,6 +1,7 @@
 import { DOMParser, Element } from 'deno-dom-wasm';
 
 import { JobSiteParseResult, ParsedJob } from './parserTypes.ts';
+import { safeMapJobs } from './parserHelpers.ts';
 
 /**
  * Method used to parse a remoteio job page.
@@ -29,7 +30,7 @@ export function parseRemoteioJobs({ siteId, html }: { siteId: number; html: stri
 
   const jobElements = Array.from(jobsList.querySelectorAll(':scope > div > div')) as Element[];
 
-  const jobs = jobElements.map((el): ParsedJob | null => {
+  const jobs = safeMapJobs(jobElements, (el): ParsedJob | null => {
     const jobInfo = el.querySelector('a');
     if (!jobInfo) return null;
 

@@ -3,6 +3,7 @@ import { DOMParser, Element, NodeType } from 'deno-dom-wasm';
 
 import { ILogger } from '../logger.ts';
 import { JobSiteParseResult, ParsedJob } from '../parsers/parserTypes.ts';
+import { safeMapJobs } from './parserHelpers.ts';
 
 /**
  * Method used to parse a linkedin job page.
@@ -610,17 +611,17 @@ export function parseLinkedInJobs({
 
   let jobs: Array<ParsedJob | null> = [];
   if (parserVersion === 1) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV1(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV1(el));
   } else if (parserVersion === 2) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV2(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV2(el));
   } else if (parserVersion === 3) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV3(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV3(el));
   } else if (parserVersion === 4) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV4(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV4(el));
   } else if (parserVersion === 5) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV5(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV5(el));
   } else if (parserVersion === 6) {
-    jobs = jobElements.map((el): ParsedJob | null => parseElementV6(el));
+    jobs = safeMapJobs(jobElements, (el): ParsedJob | null => parseElementV6(el));
   }
 
   const validJobs = jobs

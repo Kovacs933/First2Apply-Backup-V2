@@ -16,7 +16,7 @@ import {
 } from '@first2apply/core';
 import { User } from '@supabase/supabase-js';
 
-import { JobScannerSettings, NewAppVersion, OverlayBrowserViewResult } from './types';
+import { JobScannerSettings, LinkScanHealth, NewAppVersion, OverlayBrowserViewResult } from './types';
 
 async function _mainProcessApiCall<T>(channel: string, params?: object): Promise<T> {
   // @ts-expect-error Electron preload injects window.electron
@@ -408,6 +408,20 @@ export async function updateAdvancedMatchingConfig(
  */
 export async function scanLink(linkId: number): Promise<void> {
   await _mainProcessApiCall('scan-link', { linkId });
+}
+
+/**
+ * Get how the last scan of each saved search went (stored locally), keyed by link id.
+ */
+export async function getLinkScanHealth(): Promise<Record<number, LinkScanHealth>> {
+  return (await _mainProcessApiCall<Record<number, LinkScanHealth>>('get-link-scan-health', {})) ?? {};
+}
+
+/**
+ * Start scanning all saved searches right now (runs in the background).
+ */
+export async function scanAllLinks(): Promise<void> {
+  await _mainProcessApiCall('scan-all-links', {});
 }
 
 /**

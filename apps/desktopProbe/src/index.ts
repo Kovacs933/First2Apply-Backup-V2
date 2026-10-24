@@ -29,6 +29,13 @@ if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
+// identify as a regular Chrome browser: some job boards (ex: Totaljobs) refuse to load
+// for browsers that announce themselves as Electron or as this app
+app.userAgentFallback = app.userAgentFallback.replace(
+  /\s(?!Mozilla|AppleWebKit|Chrome|Safari)[A-Za-z][\w.-]*\/[\d.]+(?![^(]*\))/g,
+  '',
+);
+
 const APP_PROTOCOL = 'first2apply';
 let appIsRunning = false;
 const storage = new Storage<{
@@ -151,7 +158,7 @@ function onHideToSystemTray() {
     trayIconNotificationShown = true;
     const notification = new Notification({
       title: 'See you soon!',
-      body: 'First 2 Apply is still checking for new jobs in the background. Click the paper airplane icon in your system tray to open the app.',
+      body: 'Foundation is still checking for new jobs in the background. Click the Foundation icon in your system tray to open the app.',
     });
     notification.show();
   }
@@ -223,7 +230,9 @@ async function bootstrap() {
 
     if (!ENV.appBundleId) throw new Error(`missing APP_BUNDLE_ID`);
     if (process.platform === 'win32') {
-      app.setAppUserModelId(ENV.appBundleId);
+      // the installer (Squirrel, name "foundation" in forge.config.ts) creates the Start menu shortcut
+      // with this id, and Windows only shows notifications from apps matching their shortcut's id
+      app.setAppUserModelId(app.isPackaged ? 'com.squirrel.foundation.Foundation' : ENV.appBundleId);
     }
 
     // track the app start event

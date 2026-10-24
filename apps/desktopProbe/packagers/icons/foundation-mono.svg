@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="104 96 304 328">
+  <!-- single colour version of the Foundation mark, used for the macOS menu bar (template image) -->
+  <rect x="152" y="104" width="68" height="244" rx="22" fill="#000000"/>
+  <rect x="152" y="104" width="220" height="68" rx="22" fill="#000000"/>
+  <rect x="152" y="214" width="164" height="60" rx="22" fill="#000000"/>
+  <rect x="112" y="372" width="288" height="44" rx="22" fill="#000000" fill-opacity="0.6"/>
+</svg>

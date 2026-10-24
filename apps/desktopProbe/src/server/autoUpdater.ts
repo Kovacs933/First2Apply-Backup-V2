@@ -8,9 +8,13 @@ import * as fs from 'fs';
 import { ScheduledTask, schedule } from 'node-cron';
 import * as semver from 'semver';
 
+import { ENV } from '../env';
 import { ILogger } from './logger';
 
-const S3_BUCKET = 'https://s3.eu-central-1.amazonaws.com/first2apply.com/releases';
+// where Foundation releases are published (folder holding <platform>/<arch>/RELEASES.json).
+// Empty = auto-updates are off. It used to point at First 2 Apply's own release bucket, which
+// would have offered to replace Foundation with their app.
+const RELEASES_BASE_URL = ENV.updateFeedUrl ?? '';
 
 type ReleaseJson = {
   currentRelease: string;
@@ -50,9 +54,9 @@ export class F2aAutoUpdater {
     private _onQuit: () => Promise<void>,
     private _analytics: IAnalyticsClient,
   ) {
-    // only enable auto-updates in packaged apps
-    this._canAutoUpdate = app.isPackaged;
-    this._feedUrl = `${S3_BUCKET}/${process.platform}/${process.arch}/RELEASES.json`;
+    // only enable auto-updates in packaged apps that know where releases are published
+    this._canAutoUpdate = app.isPackaged && !!RELEASES_BASE_URL;
+    this._feedUrl = `${RELEASES_BASE_URL.replace(/\/$/, '')}/${process.platform}/${process.arch}/RELEASES.json`;
   }
 
   /**

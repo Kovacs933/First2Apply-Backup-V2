@@ -4,21 +4,20 @@ import { useAppState } from '@/hooks/appState';
 import { useError } from '@/hooks/error';
 import { useSession } from '@/hooks/session';
 import { useSettings } from '@/hooks/settings';
-import { applyAppUpdate, logout, openExternalUrl } from '@/lib/electronMainSdk';
+import { applyAppUpdate, logout } from '@/lib/electronMainSdk';
 import { JobScannerSettings } from '@/lib/types';
 import { Button } from '@first2apply/ui';
 import { Switch } from '@first2apply/ui';
-import * as luxon from 'luxon';
 
 import { DefaultLayout } from './defaultLayout';
 
 export function SettingsPage() {
   const { handleError } = useError();
-  const { isLoading: isLoadingSession, logout: resetUser, user, profile, stripeConfig } = useSession();
+  const { isLoading: isLoadingSession, logout: resetUser, user, profile } = useSession();
   const { isLoading: isLoadingSettings, settings, updateSettings } = useSettings();
   const { newUpdate } = useAppState();
 
-  const isLoading = !profile || !stripeConfig || isLoadingSettings || isLoadingSession;
+  const isLoading = !profile || isLoadingSettings || isLoadingSession;
   const hasNewUpdate = !!newUpdate;
 
   // Update settings
@@ -79,11 +78,9 @@ export function SettingsPage() {
             </h2>
             <p className="text-sm font-light">{newUpdate.message}</p>
           </div>
-          {!profile.is_trial && (
-            <Button className="w-fit" onClick={() => onApplyUpdate()}>
-              Update
-            </Button>
-          )}
+          <Button className="w-fit" onClick={() => onApplyUpdate()}>
+            Update
+          </Button>
         </div>
       )}
 
@@ -94,7 +91,7 @@ export function SettingsPage() {
       <div className="flex flex-row items-center justify-between gap-6 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="text-lg">Prevent computer from entering sleep</h2>
-          <p className="text-sm font-light">First2Apply needs to run in the background to notify you of new jobs</p>
+          <p className="text-sm font-light">Foundation needs to run in the background to notify you of new jobs</p>
         </div>
         <Switch
           checked={settings.preventSleep}
@@ -136,32 +133,6 @@ export function SettingsPage() {
           checked={settings.inAppBrowserEnabled}
           onCheckedChange={(checked) => onUpdatedSettings({ ...settings, inAppBrowserEnabled: checked })}
         />
-      </div>
-
-      {/* subscription */}
-      <div className="flex flex-row items-center justify-between gap-6 rounded-lg border p-6">
-        <div className="space-y-1">
-          <h2 className="text-lg">
-            {profile.subscription_tier.toUpperCase()} subscription
-            {profile.is_trial && ' (Trial)'}
-          </h2>
-          <p className="text-sm font-light">
-            Your subscription ends on{' '}
-            <span className="underline">
-              {luxon.DateTime.fromISO(profile.subscription_end_date).toFormat('dd LLLL yyyy')}
-            </span>
-            .{!profile.is_trial && ' You can cancel or upgrade your subscription at any time.'}
-          </p>
-        </div>
-        {!profile.is_trial && (
-          <Button
-            className="w-fit"
-            variant="secondary"
-            onClick={() => openExternalUrl(stripeConfig.customerPortalLink)}
-          >
-            Manage Subscription
-          </Button>
-        )}
       </div>
 
       <div className="flex justify-end pt-4">

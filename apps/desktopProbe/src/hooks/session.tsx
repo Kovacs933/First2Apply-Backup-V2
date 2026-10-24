@@ -124,7 +124,8 @@ export const SessionProvider = ({ children }: React.PropsWithChildren) => {
         profile,
         stripeConfig,
         isLoggedIn: !!user,
-        isSubscriptionExpired,
+        // without payment links (see server/stripeConfig.ts) there is nothing to renew, so never lock the app
+        isSubscriptionExpired: isSubscriptionExpired && !!stripeConfig?.customerPortalLink,
         logout: handleLogout,
         login: handleLogin,
         refreshProfile,

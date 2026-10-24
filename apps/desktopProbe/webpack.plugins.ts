@@ -19,6 +19,8 @@ export const plugins = [
     'MEZMO_API_KEY',
     'AMPLITUDE_API_KEY',
   ]),
+  // optional settings, empty when not in .env
+  new webpack.EnvironmentPlugin({ UPDATE_FEED_URL: '' }),
   new CopyWebpackPlugin({
     patterns: [{ from: path.join(__dirname, 'images'), to: 'images' }],
   }),

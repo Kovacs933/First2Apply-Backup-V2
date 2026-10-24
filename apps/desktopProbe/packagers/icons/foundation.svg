@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#shine)"/>
+  <!-- the F: a stem and two bars -->
+  <rect x="152" y="104" width="68" height="244" rx="22" fill="#FFFFFF"/>
+  <rect x="152" y="104" width="220" height="68" rx="22" fill="#FFFFFF"/>
+  <rect x="152" y="214" width="164" height="60" rx="22" fill="#FFFFFF"/>
+  <!-- the foundation slab it stands on -->
+  <rect x="112" y="372" width="288" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.6"/>
+</svg>

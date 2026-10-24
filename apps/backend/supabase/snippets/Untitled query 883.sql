@@ -1,0 +1,1 @@
+ALTER TYPE "Job Status" ADD VALUE IF NOT EXISTS 'deleted';

@@ -80,7 +80,7 @@ export function EditLink({
         <DialogHeader>
           <DialogTitle className="text-xl font-medium tracking-wide">Update job search</DialogTitle>
           <DialogDescription>
-            Give this search a name so you can easily find it later. First 2 Apply will keep monitoring this search and
+            Give this search a name so you can easily find it later. Foundation will keep monitoring this search and
             let you know when it finds new jobs.
           </DialogDescription>
         </DialogHeader>

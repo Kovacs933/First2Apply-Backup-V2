@@ -273,6 +273,18 @@ export function initRendererIpcApi({
 
   ipcMain.handle('scan-link', async (event, { linkId }) => _apiCall(() => jobScanner.scanLink({ linkId })));
 
+  ipcMain.handle('get-link-scan-health', async () => _apiCall(async () => jobScanner.getLinkScanHealth()));
+
+  ipcMain.handle('scan-all-links', async () =>
+    _apiCall(async () => {
+      if (jobScanner.isScanning()) {
+        throw new Error('A scan is already running. Please wait for it to finish.');
+      }
+      // intentionally not awaited, the scan runs in the background
+      jobScanner.scanAllLinks().catch((error) => console.error(getExceptionMessage(error)));
+    }),
+  );
+
   ipcMain.handle('open-overlay-browser-view', async (event, { url }) => {
     return _apiCall(async () => overlayBrowserView.open(url));
   });

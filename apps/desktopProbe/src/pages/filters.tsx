@@ -2,20 +2,10 @@ import { Cross2Icon, InfoCircledIcon, MinusCircledIcon } from '@radix-ui/react-i
 import { useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
-import { PricingOptions } from '@/components/pricingOptions';
 import { FiltersSkeleton } from '@/components/skeletons/filtersSkeleton';
 import { useError } from '@/hooks/error';
-import { useSession } from '@/hooks/session';
-import { getAdvancedMatchingConfig, openExternalUrl, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
-import { StripeBillingPlan, SubscriptionTier } from '@first2apply/core';
+import { getAdvancedMatchingConfig, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
 import { Alert, AlertDescription, AlertTitle } from '@first2apply/ui';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@first2apply/ui';
 import { Badge } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
 import { Input } from '@first2apply/ui';
@@ -24,15 +14,24 @@ import { useToast } from '@first2apply/ui';
 
 import { DefaultLayout } from './defaultLayout';
 
+// one-click starting points for the AI rules box
+const AI_RULE_EXAMPLES = [
+  'Hide jobs paying less than £30,000 a year',
+  'Hide senior, lead or manager roles',
+  'Only show remote or hybrid jobs',
+  'Hide jobs that need a driving licence',
+  'Hide temporary and contract roles',
+  'Hide jobs asking for more than 3 years of experience',
+  'Hide recruitment agency adverts',
+];
+
 export function FiltersPage() {
   const { handleError } = useError();
   const { toast } = useToast();
-  const { profile, stripeConfig, refreshProfile } = useSession();
 
   const [userAiInput, setUserAiInput] = useState<string>('');
   const [blacklistedCompanies, setBlacklistedCompanies] = useState<string[]>([]);
   const [addBlacklistedCompany, setAddBlacklistedCompany] = useState<string>('');
-  const [isSubscriptionDialogOpen, setSubscriptionDialogOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showAllBlacklistedCompanies, setShowAllBlacklistedCompanies] = useState(false);
 
@@ -67,53 +66,10 @@ export function FiltersPage() {
       });
       setUserAiInput(updatedConfig.chatgpt_prompt);
       setBlacklistedCompanies(updatedConfig.blacklisted_companies);
-
-      // if the user is not on the PRO plan, show the subscription dialog
-      if (profile.subscription_tier !== 'pro') {
-        setSubscriptionDialogOpen(true);
-        return;
-      } else {
-        toast({ title: 'Advanced matching filters saved' });
-      }
+      // advanced matching is available to everyone in Foundation, no plan check
+      toast({ title: 'Advanced matching filters saved' });
     } catch (error) {
       handleError({ error, title: 'Failed to save advanced matching filters' });
-    }
-  };
-
-  /**
-   * Handle plan selection from a trial customer.
-   */
-  const onSelectPlan = async ({ tier, billingCycle }: { tier: SubscriptionTier; billingCycle: string }) => {
-    try {
-      if (!profile.is_trial) {
-        await openExternalUrl(stripeConfig.customerPortalLink);
-      } else {
-        const stripePlan = stripeConfig.plans.find((p) => p.tier === tier);
-
-        if (!stripePlan) {
-          console.error(`Stripe plan not found for ${tier}`);
-          return;
-        }
-        const checkoutLink = stripePlan[`${billingCycle}CheckoutLink` as keyof StripeBillingPlan];
-
-        if (!checkoutLink) {
-          console.error(`Checkout link not found for ${billingCycle}`);
-          return;
-        }
-
-        await openExternalUrl(checkoutLink);
-      }
-    } catch (error) {
-      handleError({ error, title: 'Failed to upgrade to PRO plan' });
-    }
-  };
-
-  const onCloseSubscriptionDialog = async () => {
-    try {
-      await refreshProfile();
-      setSubscriptionDialogOpen(false);
-    } catch (error) {
-      handleError({ error, title: 'Failed to close subscription dialog' });
     }
   };
 
@@ -127,21 +83,51 @@ export function FiltersPage() {
 
   return (
     <DefaultLayout className="flex flex-col space-y-16 p-6 md:p-10">
-      <h1 className="w-fit text-2xl font-medium tracking-wide">Advanced Matching</h1>
+      <div className="space-y-3">
+        <h1 className="w-fit text-2xl font-medium tracking-wide">AI Job Filters</h1>
+        <p className="max-w-3xl text-base text-muted-foreground">
+          Hide the jobs you'd never apply for, so your Jobs list only shows ones worth your time. Foundation's AI reads
+          every new job advert and checks it against the rules you write below.
+        </p>
+        <ol className="max-w-3xl list-decimal space-y-1 pl-5 text-base">
+          <li>Write what you do and don't want in the first box, in plain English, one rule per line.</li>
+          <li>Optionally add companies you never want to see in the second box.</li>
+          <li>
+            Click <span className="font-medium">Save filters</span>. They apply to every new job from then on.
+          </li>
+          <li>
+            Hidden jobs aren't deleted: they go to the <span className="font-medium">Filtered out</span> tab on the
+            Jobs page, with the reason, so you can check the AI got it right.
+          </li>
+        </ol>
+      </div>
 
       <section>
-        <p className="mb-4 text-lg">
-          Set your preferences and let <span className="font-medium">AI</span> find the{' '}
-          <span className="font-medium">right jobs</span> for you. Just tell us what you’re looking for:
+        <h2 className="mb-1 text-lg font-medium">1. What are you looking for?</h2>
+        <p className="mb-3 text-base text-muted-foreground">
+          Be specific: say what to hide, not just what you like. Click an example to add it, then edit it to suit you.
         </p>
+
+        <div className="mb-3 flex flex-wrap gap-2">
+          {AI_RULE_EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              className="rounded-full border border-border bg-card px-3 py-1 text-sm hover:border-primary hover:text-primary"
+              onClick={() => setUserAiInput((current) => (current.trim() ? `${current.trimEnd()}\n${example}` : example))}
+            >
+              + {example}
+            </button>
+          ))}
+        </div>
 
         <div className="relative">
           <TextareaAutosize
             value={userAiInput}
-            placeholder='E.g. "Avoid Java or senior roles", "Seeking $60K+ salary, remote opportunities", "Suitable for under 2 years of experience"'
+            placeholder={'For example:\nHide jobs paying less than £30,000 a year\nHide senior, lead or manager roles\nOnly show remote or hybrid jobs'}
             autoFocus={true}
             onChange={(evt) => setUserAiInput(evt.target.value)}
-            minRows={3}
+            minRows={4}
             maxLength={5000}
             className="w-full resize-none rounded-md border border-border bg-card px-6 py-4 text-base ring-ring placeholder:text-muted-foreground focus:outline-none focus:ring-2"
           />
@@ -153,8 +139,8 @@ export function FiltersPage() {
             <InfoCircledIcon className="h-4 w-4 text-muted-foreground" />
           </AlertTitle>
           <AlertDescription className="text-sm text-muted-foreground">
-            Pro Tips: Exclude skills you don’t want, specify salary expectations, define experience levels, select job
-            specifics like remote work or PTO preferences and more.
+            Good rules mention salary, experience level, skills, working pattern (remote, hybrid, part-time) or
+            contract type. Leave the box empty to switch the AI filter off.
           </AlertDescription>
         </Alert>
       </section>
@@ -162,16 +148,17 @@ export function FiltersPage() {
       {/* HERE STARTS THE BLACKLISTING */}
 
       <section>
-        <p className="mb-4 text-lg">
-          <span className="font-medium">Blacklist companies</span> you don’t want to work for. We’ll make sure you{' '}
-          <span className="font-medium">don’t see jobs</span> from them anymore:
+        <h2 className="mb-1 text-lg font-medium">2. Companies to hide (optional)</h2>
+        <p className="mb-3 text-base text-muted-foreground">
+          Type a company's name exactly as it appears on job adverts, then click Add company. You won't see their jobs
+          again.
         </p>
 
         <div className="flex w-full gap-2">
           <div className="relative flex-1">
             <Input
               value={addBlacklistedCompany}
-              placeholder="E.g. Luxoft"
+              placeholder="e.g. Acme Recruitment Ltd"
               onChange={(evt) => setAddBlacklistedCompany(evt.target.value)}
               maxLength={100}
               className="bg-card px-6 pr-20 text-base ring-ring placeholder:text-base focus-visible:ring-2"
@@ -200,13 +187,13 @@ export function FiltersPage() {
             <MinusCircledIcon className="h-4 w-4 text-destructive/90" />
           </AlertTitle>
           <AlertDescription className="text-sm text-destructive/90">
-            Attention: Ensure you input the company name accurately without any typos.
+            The name must match exactly (capital letters don't matter, spelling does). "Acme" won't hide "Acme Ltd".
           </AlertDescription>
         </Alert>
 
         <div className="mt-4">
           {blacklistedCompanies.length === 0 ? (
-            <p>You haven't blacklisted any companies yet</p>
+            <p className="text-muted-foreground">No companies hidden yet.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {(showAllBlacklistedCompanies ? blacklistedCompanies : blacklistedCompanies.slice(0, 10)).map(
@@ -250,46 +237,6 @@ export function FiltersPage() {
       <Button className="ml-auto w-36" onClick={onSave}>
         Save filters
       </Button>
-
-      <SubscriptionDialog
-        isOpen={isSubscriptionDialogOpen}
-        onCancel={() => onCloseSubscriptionDialog()}
-        onSelectPlan={onSelectPlan}
-      />
     </DefaultLayout>
-  );
-}
-
-function SubscriptionDialog({
-  isOpen,
-  onCancel,
-  onSelectPlan,
-}: {
-  isOpen: boolean;
-  onCancel: () => void;
-  onSelectPlan: (_: { tier: SubscriptionTier; billingCycle: string }) => Promise<void>;
-}) {
-  return (
-    <AlertDialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          onCancel();
-        }
-      }}
-    >
-      <AlertDialogContent className="max-h-screen max-w-[80%] overflow-y-scroll">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="mb-5 text-center text-2xl">
-            Advanced matching is only available with a <b>PRO</b> plan
-            <Cross2Icon className="absolute right-4 top-4 h-6 w-6 cursor-pointer" onClick={onCancel} />
-          </AlertDialogTitle>
-          <AlertDialogDescription className="">
-            <PricingOptions onSelectPlan={onSelectPlan} disableBasic={true}></PricingOptions>
-          </AlertDialogDescription>
-          <AlertDialogDescription className="flex items-center"></AlertDialogDescription>
-        </AlertDialogHeader>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }

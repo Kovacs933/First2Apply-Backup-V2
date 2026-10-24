@@ -27,6 +27,7 @@ import * as z from 'zod';
 
 import { BrowserWindow, BrowserWindowHandle } from './browserWindow';
 import { Icons } from './icons';
+import { SearchAllBoards } from './searchAllBoards';
 
 export function CreateLink() {
   const [jobBoardModalResponse, setJobBoardModalResponse] = useState<OverlayBrowserViewResult>();
@@ -36,7 +37,6 @@ export function CreateLink() {
   const { handleError } = useError();
   const { createLink } = useLinks();
   const { sites } = useSites();
-  const { toast } = useToast();
 
   // sort sites by name
   const sortedSites = sites
@@ -45,6 +45,7 @@ export function CreateLink() {
     .filter((site) => site.deprecated === false);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
 
   // Handler for form submission
   const onOpenSite = async (site: JobSite) => {
@@ -102,10 +103,6 @@ export function CreateLink() {
       webPageRuntimeData: jobBoardModalResponse.webPageRuntimeData,
       force,
     });
-    toast({
-      title: 'Link created',
-      description: `Link ${createdLink.title} created successfully`,
-    });
 
     setIsConfirmationDialogOpen(false);
     setJobBoardModalResponse(undefined);
@@ -117,6 +114,11 @@ export function CreateLink() {
   // JSX for rendering the form
   return (
     <>
+      <Button variant="outline" size="lg" className="px-6 text-base" onClick={() => setIsSearchAllOpen(true)}>
+        Search all UK boards
+      </Button>
+      <SearchAllBoards open={isSearchAllOpen} onOpenChange={setIsSearchAllOpen} />
+
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button variant="default" size="lg" className="px-10 text-base">
@@ -247,7 +249,7 @@ const JobSearchSubmitDialog = ({
         <DialogHeader>
           <DialogTitle className="text-xl font-medium tracking-wide">Add new job search</DialogTitle>
           <DialogDescription>
-            Give this search a name so you can easily find it later. First 2 Apply will keep monitoring this search and
+            Give this search a name so you can easily find it later. Foundation will keep monitoring this search and
             let you know when it finds new jobs.
             {errorMessage && (
               <Alert variant="destructive" className="mt-4">

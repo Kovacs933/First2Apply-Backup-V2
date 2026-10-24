@@ -24,6 +24,10 @@ shadow_port = 54320
 # server_version;` on the remote database to check.
 major_version = 15
 
+[db.seed]
+# tables come from migrations/ (seed.sql is the old, out of date schema); sites.sql adds the job boards
+sql_paths = ["./sites.sql"]
+
 [db.pooler]
 enabled = false
 # Port to use for the local connection pooler.

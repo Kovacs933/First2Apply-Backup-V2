@@ -11,6 +11,7 @@ import { AVAILABLE_CRON_RULES, JobScannerSettings } from '../lib/types';
 import { installLinkedInDecorator } from './browserHelpers';
 import { chunk, promiseAllSequence, waitRandomBetween } from './helpers';
 import { HtmlDownloader } from './htmlDownloader';
+import { LinkScanHealthStore } from './linkScanHealth';
 import { ILogger } from './logger';
 
 const userDataPath = app.getPath('userData');
@@ -47,6 +48,7 @@ export class JobScanner {
   private _prowerSaveBlockerId: number | undefined;
   private _notificationsMap: Map<string, Notification> = new Map();
   private _runningScansCount = 0;
+  private _scanHealth: LinkScanHealthStore;
 
   constructor({
     logger,
@@ -69,6 +71,7 @@ export class JobScanner {
     this._incognitoHtmlDownloader = incognitoHtmlDownloader;
     this._onNavigate = onNavigate;
     this._analytics = analytics;
+    this._scanHealth = new LinkScanHealthStore(logger);
 
     // Install LinkedIn protocol interceptor on the normal scraper session.
     // This must happen after init() so the pool (and its session) exists.
@@ -99,6 +102,13 @@ export class JobScanner {
    */
   isScanning() {
     return this._runningScansCount > 0;
+  }
+
+  /**
+   * Get the locally stored scan health of every saved search.
+   */
+  getLinkScanHealth() {
+    return this._scanHealth.getAll();
   }
 
   /**
@@ -152,6 +162,8 @@ export class JobScanner {
                   throw new Error(`failed to parse html for link ${link.id}`);
                 }
 
+                this._scanHealth.recordSuccess(link.id, newJobs.length);
+
                 // add a random delay before moving on to the next link
                 // to avoid being rate limited by cloudflare
                 await waitRandomBetween(1000, 4000);
@@ -165,6 +177,7 @@ export class JobScanner {
                 this._logger.error(`failed to scan link: ${errorMessage}`, {
                   linkId: link.id,
                 });
+                this._scanHealth.recordFailure(link.id, error);
 
                 // when dealing with rate limits, bump the number of failed attempts for the link
                 await this._supabaseApi

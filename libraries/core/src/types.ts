@@ -18,6 +18,16 @@ export enum SiteProvider {
   talent = 'talent',
   hiringCafe = 'hiringCafe',
 
+  // UK job boards
+  reed = 'reed',
+  totaljobs = 'totaljobs',
+  cvLibrary = 'cvLibrary',
+  adzuna = 'adzuna',
+  nhsJobs = 'nhsJobs',
+  workHub = 'workHub',
+  charityJob = 'charityJob',
+  jobsAcUk = 'jobsAcUk',
+
   // generic provider for sites not in the list above
   custom = 'custom',
 }

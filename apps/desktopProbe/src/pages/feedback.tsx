@@ -19,7 +19,12 @@ import { useError } from '../hooks/error';
 import { createReview, getOS, getUserReview, openExternalUrl, updateReview } from '../lib/electronMainSdk';
 import { DefaultLayout } from './defaultLayout';
 
-const MICROSOFT_APP_URL = 'ms-windows-store://pdp/?productid=9NK18WV87SV2';
+// Foundation isn't on the Microsoft Store yet (the old id was First 2 Apply's listing).
+// Set it to 'ms-windows-store://pdp/?productid=<your id>' to show the "leave a review" prompt.
+const MICROSOFT_APP_URL = '';
+
+// where feedback from the Feedback page is emailed
+const FEEDBACK_EMAIL = 'edwardhoffman95@gmail.com';
 
 const StarIcon = ({ filled = false }) => (
   <svg
@@ -112,10 +117,16 @@ export function FeedbackPage() {
       }
       setExistingReview(updatedReview);
 
+      // also hand the feedback to the user's email app, addressed to the Foundation team
+      const subject = `Foundation feedback (${rating}/5): ${title}`;
+      const body = `${description ?? ''}\n\nRating: ${rating}/5`;
+      await openExternalUrl(
+        `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      );
+
       toast({
-        title: 'Thank you for making First 2 Apply better!',
-        description:
-          'Your feedback has been submitted and our team will review it soon. You can always update your review later.',
+        title: 'Thank you for making Foundation better!',
+        description: 'Your email app has opened with your feedback ready to send. Just press Send.',
         variant: 'success',
       });
     } catch (error) {
@@ -146,14 +157,14 @@ export function FeedbackPage() {
 
       <Card className="rounded-lg">
         <CardHeader>
-          <h2 className="text-xl font-medium">Help us make First 2 Apply better</h2>
+          <h2 className="text-xl font-medium">Help us make Foundation better</h2>
           <p className="text-balance text-sm text-muted-foreground">
             Let us know what works, what doesn't or any ideas you might have that would make the app better suited to
             your job hunting needs.
           </p>
-          {userOS === 'win32' && (
+          {userOS === 'win32' && MICROSOFT_APP_URL && (
             <p className="my-2 text-balance text-sm text-muted-foreground">
-              If you're enjoying First 2 Apply, please consider leaving a review on the{' '}
+              If you're enjoying Foundation, please consider leaving a review on the{' '}
               <a
                 className="hover:text-primary-dark text-primary underline hover:cursor-pointer hover:no-underline"
                 onClick={(e) => {

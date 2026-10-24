@@ -20,11 +20,18 @@ loadEnvVars({ path: path.join(__dirname, '..', 'desktopProbe', '.env') });
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    icon: path.join(__dirname, 'packagers', 'icons', 'paper-plane'),
+    icon: path.join(__dirname, 'packagers', 'icons', 'foundation'),
+    executableName: 'Foundation',
+    // shown in the exe's file details and used for the Start menu folder
+    win32metadata: {
+      CompanyName: 'Foundation',
+      ProductName: 'Foundation',
+      FileDescription: 'Foundation',
+    },
     appBundleId: process.env.APP_BUNDLE_ID,
     protocols: [
       {
-        name: 'First 2 Apply',
+        name: 'Foundation',
         schemes: ['first2apply'],
       },
     ],
@@ -37,10 +44,14 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {},
   makers: [
+    // Windows installer: out/make/squirrel.windows/x64/FoundationSetup.exe
     new MakerSquirrel({
-      authors: 'BeastX Industries',
-      name: 'f2a',
-      setupIcon: path.join(__dirname, 'packagers', 'icons', 'paper-plane.ico'),
+      authors: 'Foundation',
+      name: 'foundation',
+      exe: 'Foundation.exe',
+      setupExe: 'FoundationSetup.exe',
+      setupIcon: path.join(__dirname, 'packagers', 'icons', 'foundation.ico'),
+      noMsi: true,
     }),
     new MakerDMG({
       format: 'ULFO',
@@ -68,26 +79,26 @@ const config: ForgeConfig = {
     }),
     new MakerDeb({
       options: {
-        name: 'First 2 Apply',
-        bin: 'First 2 Apply',
-        icon: path.join(__dirname, 'packagers', 'icons', 'paper-plane.png'),
+        name: 'foundation',
+        bin: 'Foundation',
+        icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
         mimeType: ['x-scheme-handler/first2apply'],
       },
     }),
     new MakerRpm({
       options: {
-        name: 'First 2 Apply',
-        bin: 'First 2 Apply',
-        icon: path.join(__dirname, 'packagers', 'icons', 'paper-plane.png'),
+        name: 'foundation',
+        bin: 'Foundation',
+        icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
         mimeType: ['x-scheme-handler/first2apply'],
       },
     }),
     new MakerFlatpak({
       options: {
         id: process.env.APP_BUNDLE_ID,
-        productName: 'First 2 Apply',
+        productName: 'Foundation',
         genericName: 'Job Search',
-        icon: path.join(__dirname, 'packagers', 'icons', 'paper-plane.png'),
+        icon: path.join(__dirname, 'packagers', 'icons', 'foundation.png'),
         categories: ['Utility'],
         mimeType: ['x-scheme-handler/first2apply'],
         files: [],
@@ -96,26 +107,15 @@ const config: ForgeConfig = {
     {
       name: '@electron-forge/maker-zip',
       config: (arch: string) => ({
-        // Note that we must provide this S3 URL here
-        // in order to support smooth version transitions
-        // especially when using a CDN to front your updates
-        macUpdateManifestBaseUrl: `https://s3.eu-central-1.amazonaws.com/first2apply.com/releases/darwin/${arch}`,
+        // mac auto-updates read the release manifest from the same place as UPDATE_FEED_URL
+        macUpdateManifestBaseUrl: process.env.UPDATE_FEED_URL
+          ? `${process.env.UPDATE_FEED_URL.replace(/\/$/, '')}/darwin/${arch}`
+          : undefined,
       }),
     },
   ],
-  publishers: [
-    {
-      name: '@electron-forge/publisher-s3',
-      config: {
-        bucket: 'first2apply.com',
-        region: 'eu-central-1',
-        public: true,
-        keyResolver: (fileName: string, platform: string, arch: string) => {
-          return `releases/${platform}/${arch}/${fileName}`;
-        },
-      },
-    },
-  ],
+  // no publishers: the S3 bucket inherited from First 2 Apply belonged to that project.
+  // Upload FoundationSetup.exe to your website instead (see launcher/build-installer.ps1).
   plugins: [
     new AutoUnpackNativesPlugin({}),
     new WebpackPlugin({

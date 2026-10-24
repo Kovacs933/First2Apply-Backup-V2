@@ -56,7 +56,7 @@ export function buildOpenAiClient({ modelName }: { modelName?: SupportedModel })
     defaultHeaders: {
       // Optional attribution headers used by OpenRouter for dashboards/rankings.
       'HTTP-Referer': env.webappUrl,
-      'X-Title': 'First 2 Apply',
+      'X-Title': 'Foundation',
     },
   });
 

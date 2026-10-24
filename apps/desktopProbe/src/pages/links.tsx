@@ -6,10 +6,11 @@ import { LinksList } from '@/components/linksList';
 import { LinksListSkeleton } from '@/components/skeletons/linksListSkeleton';
 import { useAppState } from '@/hooks/appState';
 import { useError } from '@/hooks/error';
-import { scanLink } from '@/lib/electronMainSdk';
+import { getLinkScanHealth, scanAllLinks, scanLink } from '@/lib/electronMainSdk';
+import { LinkScanHealth } from '@/lib/types';
 import { throwError } from '@first2apply/core';
 import { useLinks } from '@first2apply/ui';
-import { toast } from '@first2apply/ui';
+import { Button, toast } from '@first2apply/ui';
 
 import { DefaultLayout } from './defaultLayout';
 
@@ -19,6 +20,50 @@ export function LinksPage() {
   const { isScanning } = useAppState();
   const browserWindowRef = useRef<BrowserWindowHandle>(null);
   const [currentDebugLinkId, setCurrentDebugLinkId] = useState<number | null>(null);
+  const [scanHealth, setScanHealth] = useState<Record<number, LinkScanHealth>>({});
+
+  // load the scan health of each search, and refresh it while this page is open
+  useEffect(() => {
+    let cancelled = false;
+    const loadHealth = async () => {
+      try {
+        const health = await getLinkScanHealth();
+        if (!cancelled) setScanHealth(health);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadHealth();
+    const interval = setInterval(loadHealth, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // reload links when a scan finishes, so "last successful check" stays fresh
+  const wasScanning = useRef(isScanning);
+  useEffect(() => {
+    if (wasScanning.current && !isScanning) {
+      reloadLinks().catch((error) => handleError({ error }));
+      getLinkScanHealth()
+        .then(setScanHealth)
+        .catch((error) => console.error(error));
+    }
+    wasScanning.current = isScanning;
+  }, [isScanning]);
+
+  const handleScanAll = async () => {
+    try {
+      await scanAllLinks();
+      toast({
+        title: 'Scanning all searches ...',
+        description: 'This runs in the background. You will be notified if there are new jobs.',
+      });
+    } catch (error) {
+      handleError({ error });
+    }
+  };
 
   // refresh links on component mount
   useEffect(() => {
@@ -96,17 +141,24 @@ export function LinksPage() {
           {isScanning && <span className="ml-4 pb-1 text-xs">( currently scanning for new jobs )</span>}
         </div>
 
-        {links.length > 0 && <CreateLink />}
+        {links.length > 0 && (
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="lg" className="px-6 text-base" disabled={isScanning} onClick={handleScanAll}>
+              {isScanning ? 'Scanning ...' : 'Scan now'}
+            </Button>
+            <CreateLink />
+          </div>
+        )}
       </div>
 
       {links.length === 0 && (
         <div className="flex h-[calc(100vh-200px)] flex-col items-center justify-center">
           <h2 className="mb-10 w-3/5 whitespace-break-spaces break-normal text-center text-xl tracking-wide md:text-2xl xl:w-1/2">
-            First 2 Apply periodically visits your <span className="whitespace-nowrap font-medium">pre-configured</span>{' '}
+            Foundation periodically visits your <span className="whitespace-nowrap font-medium">pre-configured</span>{' '}
             job searches and fetches the list of jobs. If there are new jobs since the last visit, you will be notified.
           </h2>
 
-          <div className="w-fit">
+          <div className="flex w-fit gap-3">
             <CreateLink />
           </div>
         </div>
@@ -118,6 +170,7 @@ export function LinksPage() {
           onDeleteLink={handleDeleteLink}
           onDebugLink={handleDebugLink}
           onUpdateLink={handleUpdateLink}
+          scanHealth={scanHealth}
         />
       )}
 

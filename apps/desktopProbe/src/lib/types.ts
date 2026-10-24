@@ -48,6 +48,19 @@ export type JobScannerSettings = {
   inAppBrowserEnabled: boolean;
 };
 
+/**
+ * Result of the most recent scans of a saved search, stored locally on this computer.
+ */
+export type LinkScanHealth = {
+  lastScanAt: string;
+  lastSuccessAt: string | null;
+  /** plain-English reason of the last failure, null if the last scan worked */
+  lastError: string | null;
+  lastNewJobsCount: number;
+  totalNewJobsCount: number;
+  consecutiveFailures: number;
+};
+
 export type NewAppVersion = {
   name: string;
   url: string;

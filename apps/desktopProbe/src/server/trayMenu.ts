@@ -65,7 +65,7 @@ export class TrayMenu {
     ]);
 
     this._tray.setContextMenu(contextMenu);
-    this._tray.setToolTip('First2Apply');
+    this._tray.setToolTip('Foundation');
     if (process.platform === 'win32') {
       this._tray.on('click', () => {
         this._tray.popUpContextMenu();

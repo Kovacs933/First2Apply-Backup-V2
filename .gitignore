@@ -136,3 +136,11 @@ build/
 .pnpm-store/
 
 ssl
+# generated database password for the hosted Supabase project
+launcher/hosted-db-password.txt
+launcher/functions.log
+
+# Foundation: built installer (too big for GitHub), local backups and webpack output
+release/
+_backups/
+.webpack/

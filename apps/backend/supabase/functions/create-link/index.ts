@@ -3,6 +3,7 @@ import { getExceptionMessage } from '@first2apply/core';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
 import { CORS_HEADERS } from '../_shared/cors.ts';
+import { filterCrossBoardDuplicates } from '../_shared/crossBoardDedupe.ts';
 import { getEdgeFunctionContext } from '../_shared/edgeFunctions.ts';
 import { cleanJobUrl, parseJobsListUrl } from '../_shared/jobListParser.ts';
 import { createLoggerWithMeta } from '../_shared/logger.ts';
@@ -60,11 +61,31 @@ Deno.serve(async (req) => {
     }
 
     // insert a new link in the db
+    // basic URL sanity check with a friendly message
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('bad protocol');
+    } catch {
+      throw new Error(
+        `That doesn't look like a web address. Paste the full link of a job search results page, starting with https:// (for example https://www.linkedin.com/jobs/search/?keywords=designer).`,
+      );
+    }
+
     const { cleanUrl, site } = cleanJobUrl({
       url,
       allJobSites,
       hasCustomJobsParsing,
+      // "Save Anyway" sends force=true, which skips the "no search params" check
+      skipSearchParamsCheck: !!force,
     });
+
+    // avoid saving the exact same search twice
+    const duplicateLink = existingLinks?.find((l) => l.url === cleanUrl);
+    if (duplicateLink && !force) {
+      throw new Error(
+        `You already saved this search as "${duplicateLink.title}". You can find it on the Job Searches page.`,
+      );
+    }
 
     // check if the site is deprecated
     if (site.deprecated) {
@@ -138,10 +159,13 @@ Deno.serve(async (req) => {
         job.link_id = link.id;
       });
 
+      // skip jobs the user already has from another job board (or reposts with a new id)
+      const uniqueJobs = await filterCrossBoardDuplicates({ jobs, userId: user.id, supabaseClient, logger });
+
       const { data: upsertedJobs, error: insertError } = await supabaseClient
         .from('jobs')
         .upsert(
-          jobs.map((job) => ({
+          uniqueJobs.map((job) => ({
             ...job,
             status: 'processing' as const,
 

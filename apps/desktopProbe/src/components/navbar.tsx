@@ -70,11 +70,11 @@ export function Navbar() {
             <Tooltip>
               <TooltipTrigger className="flex gap-3">
                 <Logo />
-                <span className="hidden text-lg 2xl:inline-block">{isScanning ? 'Scanning ...' : 'First 2 Apply'}</span>
+                <span className="hidden text-lg 2xl:inline-block">{isScanning ? 'Scanning ...' : 'Foundation'}</span>
               </TooltipTrigger>
 
               <TooltipContent side="right" className="text-base 2xl:hidden">
-                {isScanning ? 'Scanning for new jobs ...' : 'First 2 Apply'}
+                {isScanning ? 'Scanning for new jobs ...' : 'Foundation'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
