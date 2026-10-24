@@ -1,20 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4F46E5"/>
-      <stop offset="1" stop-color="#0EA5E9"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#shine)"/>
-  <!-- the F: a stem and two bars -->
-  <rect x="152" y="104" width="68" height="244" rx="22" fill="#FFFFFF"/>
-  <rect x="152" y="104" width="220" height="68" rx="22" fill="#FFFFFF"/>
-  <rect x="152" y="214" width="164" height="60" rx="22" fill="#FFFFFF"/>
-  <!-- the foundation slab it stands on -->
-  <rect x="112" y="372" width="288" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.6"/>
+  <!-- Foundation app icon: the navy + orange "F" mark on a white rounded square -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#FFFFFF"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="111.5" fill="none" stroke="#253B63" stroke-opacity="0.12"/>
+  <g transform="translate(122 96)">
+    <!-- orange F: stem, top bar, middle bar -->
+    <rect x="88" y="0" width="78" height="289" rx="39" fill="#E8A55A"/>
+    <rect x="88" y="0" width="180" height="78" rx="39" fill="#E8A55A"/>
+    <rect x="150" y="88" width="116" height="77" rx="38.5" fill="#E8A55A"/>
+    <!-- navy bar crossing in front of the stem, and the navy pill below it -->
+    <path d="M39.5 86 H166 V165 H39.5 A39.5 39.5 0 0 1 39.5 86 Z" fill="#253B63"/>
+    <rect x="0" y="173" width="77" height="147" rx="38.5" fill="#253B63"/>
+  </g>
 </svg>

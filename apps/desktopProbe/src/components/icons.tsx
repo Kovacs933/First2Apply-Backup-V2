@@ -1,13 +1,15 @@
 type IconProps = React.HTMLAttributes<SVGElement>;
 
 export const Icons = {
-  // Foundation mark: an "F" standing on a foundation slab (same shapes as packagers/icons/foundation.svg)
+  // Foundation mark (same shapes as packagers/icons/foundation.svg): orange "F" with a navy bar and pill.
+  // The navy parts use currentColor so they stay visible in dark mode.
   logo: (props: IconProps) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="104 96 304 328" fill="currentColor" {...props}>
-      <rect x="152" y="104" width="68" height="244" rx="22" />
-      <rect x="152" y="104" width="220" height="68" rx="22" />
-      <rect x="152" y="214" width="164" height="60" rx="22" />
-      <rect x="112" y="372" width="288" height="44" rx="22" fillOpacity="0.6" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 284 336" fill="currentColor" {...props}>
+      <rect x="88" y="0" width="78" height="289" rx="39" fill="#E8A55A" />
+      <rect x="88" y="0" width="180" height="78" rx="39" fill="#E8A55A" />
+      <rect x="150" y="88" width="116" height="77" rx="38.5" fill="#E8A55A" />
+      <path d="M39.5 86 H166 V165 H39.5 A39.5 39.5 0 0 1 39.5 86 Z" />
+      <rect x="0" y="173" width="77" height="147" rx="38.5" />
     </svg>
   ),
   twitter: (props: IconProps) => (
