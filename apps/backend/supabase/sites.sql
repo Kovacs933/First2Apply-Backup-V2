@@ -28,10 +28,10 @@ INSERT INTO public.sites (id, name, urls, created_at, "queryParamsToRemove", log
 
 -- UK boards
 (19, 'Reed', ARRAY['https://www.reed.co.uk']::text[], '2026-10-24 12:00:00+00', ARRAY['sid']::text[], 'https://www.google.com/s2/favicons?domain=reed.co.uk&sz=128', ARRAY['/','/jobs']::text[], 'reed', false, false),
-(20, 'Totaljobs & CWJobs', ARRAY['https://www.totaljobs.com','https://www.cwjobs.co.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=totaljobs.com&sz=128', ARRAY['/']::text[], 'totaljobs', false, false),
+(20, 'Totaljobs & CWJobs', ARRAY['https://www.totaljobs.com','https://www.cwjobs.co.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://icons.duckduckgo.com/ip3/www.totaljobs.com.ico', ARRAY['/']::text[], 'totaljobs', false, false),
 (21, 'CV-Library', ARRAY['https://www.cv-library.co.uk']::text[], '2026-10-24 12:00:00+00', ARRAY['jobId','search_id']::text[], 'https://www.google.com/s2/favicons?domain=cv-library.co.uk&sz=128', ARRAY['/']::text[], 'cvLibrary', false, false),
 (22, 'Adzuna', ARRAY['https://www.adzuna.co.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=adzuna.co.uk&sz=128', ARRAY['/']::text[], 'adzuna', false, false),
-(23, 'NHS Jobs', ARRAY['https://www.jobs.nhs.uk/candidate']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=jobs.nhs.uk&sz=128', ARRAY['/','/candidate','/candidate/search']::text[], 'nhsJobs', false, false),
+(23, 'NHS Jobs', ARRAY['https://www.jobs.nhs.uk/candidate']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=www.jobs.nhs.uk&sz=128', ARRAY['/','/candidate','/candidate/search']::text[], 'nhsJobs', false, false),
 (24, 'GOV.UK Find a Job (Work Hub)', ARRAY['https://www.jobs.service.gov.uk/jobs']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=gov.uk&sz=128', ARRAY['/','/jobs']::text[], 'workHub', false, false),
 (25, 'CharityJob', ARRAY['https://www.charityjob.co.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=charityjob.co.uk&sz=128', ARRAY['/']::text[], 'charityJob', false, false),
 (26, 'jobs.ac.uk', ARRAY['https://www.jobs.ac.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=jobs.ac.uk&sz=128', ARRAY['/']::text[], 'jobsAcUk', false, false),
