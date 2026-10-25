@@ -312,6 +312,13 @@ export async function exportJobsToCsv(status: JobStatus): Promise<void> {
 }
 
 /**
+ * The app version and Windows version, sent along with feedback.
+ */
+export async function getAppInfo(): Promise<{ version: string; os: string }> {
+  return await _mainProcessApiCall('get-app-info', {});
+}
+
+/**
  * Write a CV for the target role with AI.
  */
 export async function generateCv(params: GenerateCvParams): Promise<GeneratedCv> {

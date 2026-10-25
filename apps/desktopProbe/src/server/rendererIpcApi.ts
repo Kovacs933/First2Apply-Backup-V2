@@ -52,6 +52,17 @@ export function initRendererIpcApi({
     }),
   );
 
+  // shown with feedback, so problems can be matched to an app version
+  ipcMain.handle('get-app-info', () =>
+    _apiCall(async () => {
+      // "Windows_NT 10.0.26200" -> "Windows 11"; Windows 11 builds start at 22000
+      const build = Number(os.release().split('.')[2] ?? 0);
+      const osName =
+        os.platform() === 'win32' ? `Windows ${build >= 22000 ? '11' : '10'}` : os.platform() === 'darwin' ? 'macOS' : os.type();
+      return { version: app.getVersion(), os: osName };
+    }),
+  );
+
   ipcMain.handle('signup-with-email', async (event, { email, password }) =>
     _apiCall(async () => {
       const result = await supabaseApi.signupWithEmail({ email, password });
