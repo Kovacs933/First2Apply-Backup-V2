@@ -245,12 +245,15 @@ const knownSkill = (own: string) => SKILLS.find((s) => sameSkill(own, s.skill) |
 
 const aOrAn = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
-/** Years since the earliest year in the candidate's job dates (0 if none are given). */
-function yearsOfExperience(profile: CvProfile): number {
+/**
+ * The earliest year in the candidate's job dates (undefined if none are given). Used as "working since 2021"
+ * rather than a count of years, which would overstate experience with gaps or part-time work.
+ */
+function firstWorkYear(profile: CvProfile): number | undefined {
   const years = profile.experience
     .flatMap((e): string[] => (e.dates ?? '').match(/\b(19|20)\d{2}\b/g) ?? [])
     .map(Number);
-  return years.length ? new Date().getFullYear() - Math.min(...years) : 0;
+  return years.length ? Math.min(...years) : undefined;
 }
 
 /**
@@ -291,17 +294,19 @@ export function buildTemplateCv({
   const role = targetRole.trim();
   const jobs = profile.experience.filter((e) => e.title.trim() || e.employer.trim());
   const latest = jobs.find((e) => e.title.trim());
-  const years = yearsOfExperience(profile);
+  const since = firstWorkYear(profile);
   const latestEducation = profile.education.find((e) => e.qualification.trim());
 
-  // e.g. "Assistant Job Coach at Lighthouse Futures Trust with 3 years' experience. Particular strengths in
-  // training and mentoring, safeguarding and communication. Has a DBS check and a driving licence. Now looking
+  // Only facts the candidate entered: their job, dates, skills, checks and the role they want. No claims about
+  // character ("motivated", "reliable") or experience they didn't give.
+  // e.g. "Assistant Job Coach at Lighthouse Futures Trust, working since 2021. Particular strengths in
+  // safeguarding, communication, and training and mentoring. Has a DBS check and a driving licence. Now looking
   // to bring this experience to a Job Coach role in Leeds."
   const opening = latest
-    ? `${latest.title.trim()}${latest.employer.trim() ? ` at ${latest.employer.trim()}` : ''}${years >= 2 ? ` with ${years} years' experience` : ''}.`
+    ? `${latest.title.trim()}${latest.employer.trim() ? ` at ${latest.employer.trim()}` : ''}${since && since < new Date().getFullYear() ? `, working since ${since}` : ''}.`
     : latestEducation
-      ? `Motivated candidate with ${aOrAn(latestEducation.qualification.trim())} ${latestEducation.qualification.trim()}${latestEducation.place.trim() ? ` from ${latestEducation.place.trim()}` : ''}.`
-      : 'Motivated and reliable candidate, keen to learn and quick to pick up new responsibilities.';
+      ? `${latestEducation.qualification.trim()}${latestEducation.place.trim() ? `, ${latestEducation.place.trim()}` : ''}.`
+      : '';
   const strengthsLine = strengths.length ? `Particular strengths in ${joinList(strengths.map(inSentence))}.` : '';
   const credentialsLine = credentials.length
     ? `Has ${joinList(credentials.map((c) => CREDENTIALS[knownSkill(c)?.skill ?? ''] ?? c))}.`

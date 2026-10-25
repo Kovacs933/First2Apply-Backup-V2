@@ -22,6 +22,11 @@ This folder is the Foundation project. Open **this folder** in Claude next time.
    always gives the latest release.
 4. If the backend changed: double-click **Update Foundation online** on the Desktop.
 
+## Version 1.0.11 (25 Oct 2026)
+
+Template CVs only state facts the user entered: no "motivated and reliable" filler, and "working since 2021" instead
+of a years-of-experience count that could overstate it.
+
 ## Version 1.0.10 (25 Oct 2026)
 
 CVs tailored to the role (full personal profile, only relevant skills, Checks and licences), weighted to the jobs
