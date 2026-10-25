@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Foundation – every UK job board in one app</title>
-  <meta name="description" content="Foundation watches Reed, Indeed, Totaljobs, LinkedIn, CV-Library and more for you, and tells you the moment a new job appears. Free for Windows.">
+  <meta name="description" content="Foundation watches Adzuna, CV-Library, Indeed, NHS Jobs, Reed, Totaljobs and more for you, and tells you the moment a new job appears. Free for Windows.">
   <meta property="og:title" content="Foundation – every UK job board in one app">
   <meta property="og:description" content="Search every UK job board at once and be one of the first to apply. Free for Windows.">
   <meta property="og:image" content="assets/app-icon.png">
@@ -25,6 +25,7 @@
       <nav class="nav" aria-label="Main">
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
+        <a href="#job-boards">Job Boards</a>
         <a href="#faq">FAQ</a>
       </nav>
       <a class="btn btn-small" href="#download">Download</a>
@@ -39,7 +40,7 @@
           <p class="eyebrow">Free job alerts for the UK</p>
           <h1>Every UK job board.<br><span class="accent">One app.</span></h1>
           <p class="lead">
-            Foundation watches Reed, Indeed, Totaljobs, LinkedIn, CV-Library and more for you, and tells you the
+            Foundation watches Adzuna, CV-Library, Indeed, NHS Jobs, Reed, Totaljobs and more for you, and tells you the
             moment a new job appears &ndash; so you can be one of the first to apply.
           </p>
           <div class="cta-row">
@@ -91,9 +92,8 @@
       <div class="container">
         <p id="boards-title" class="boards-title">Searches all of these for you</p>
         <ul class="board-list">
-          <li>Reed</li><li>Indeed UK</li><li>Totaljobs</li><li>CWJobs</li><li>LinkedIn</li><li>CV-Library</li>
-          <li>Adzuna</li><li>Glassdoor UK</li><li>GOV.UK Find a Job</li><li>NHS Jobs</li><li>CharityJob</li>
-          <li>jobs.ac.uk</li><li>Robert Half</li>
+          <li>Adzuna</li><li>CharityJob</li><li>CV-Library</li><li>GOV.UK Find a Job</li><li>Indeed UK</li>
+          <li>jobs.ac.uk</li><li>Lighthouse Futures Trust</li><li>NHS Jobs</li><li>Reed</li><li>Totaljobs</li>
         </ul>
       </div>
     </section>
@@ -101,39 +101,54 @@
     <!-- features -->
     <section id="features" class="section">
       <div class="container">
+        <p class="section-eyebrow">Features</p>
         <h2>Spend your time applying, not searching</h2>
-        <p class="section-lead">Checking a dozen job sites every day is exhausting. Foundation does it for you, all day, every day.</p>
-        <div class="features">
-          <article class="feature">
-            <div class="icon">&#128269;</div>
-            <h3>Search every board at once</h3>
-            <p>Type a job and a town once. Foundation sets up the same search on every major UK job board.</p>
-          </article>
-          <article class="feature">
-            <div class="icon">&#128205;</div>
-            <h3>Choose your distance</h3>
-            <p>Slide from your exact town up to 500 miles away. Each board is searched within your chosen distance.</p>
-          </article>
-          <article class="feature">
-            <div class="icon">&#9889;</div>
-            <h3>Instant alerts</h3>
-            <p>Get a notification the moment a new job is posted, so you can apply while the advert is fresh.</p>
-          </article>
-          <article class="feature">
-            <div class="icon">&#129302;</div>
-            <h3>AI job filters, free</h3>
-            <p>Write rules in plain English, like &ldquo;hide jobs under &pound;30,000&rdquo;, and only see the jobs worth your time.</p>
-          </article>
-          <article class="feature">
-            <div class="icon">&#128203;</div>
-            <h3>Track your applications</h3>
-            <p>Mark jobs as considering, applied, interviewing or offer, and keep notes on each one.</p>
-          </article>
-          <article class="feature">
-            <div class="icon">&#128683;</div>
-            <h3>Hide companies</h3>
-            <p>Never want to see a certain employer or agency again? Add them once and they're gone.</p>
-          </article>
+        <p class="section-lead">Foundation checks every UK job board for you and helps you build a CV that fits the jobs you want.</p>
+
+        <!-- features grouped by Foundation's two goals: finding jobs and building a CV -->
+        <div class="feature-group">
+          <h3 class="feature-group-title">
+            <svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13a20 20 0 0 0 18 0"/></svg>
+            Find the right jobs <span>&middot; 4 features</span>
+          </h3>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-icon"><svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></svg></div>
+              <h4>Every board at once</h4>
+              <p>One job title and town, searched on every major UK board.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="11" r="3"/><path d="M17.66 16.66 13.41 20.9a2 2 0 0 1-2.83 0l-4.24-4.24a8 8 0 1 1 11.32 0z"/></svg></div>
+              <h4>Your distance</h4>
+              <p>From your exact town up to 500 miles away.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg></div>
+              <h4>Instant alerts</h4>
+              <p>Know the moment a new job is posted.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v2.17a2 2 0 0 1-.59 1.42L15 12v7l-6 2v-8.5L4.52 7.57A2 2 0 0 1 4 6.23z"/></svg></div>
+              <h4>Filter out the noise</h4>
+              <p>Hide companies, locations and jobs you'd never apply for.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="feature-group">
+          <h3 class="feature-group-title">
+            <svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h6"/></svg>
+            Build a CV that fits <span>&middot; 1 feature</span>
+          </h3>
+          <div class="feature-grid">
+            <article class="feature-card feature-card-wide">
+              <div class="feature-icon"><svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 9h1M9 13h6M9 17h6"/></svg></div>
+              <div>
+                <h4>UK CV Builder</h4>
+                <p>Upload your CV and get a 1 to 2 page UK CV matched to what employers ask for.</p>
+              </div>
+            </article>
+          </div>
         </div>
       </div>
     </section>
@@ -188,6 +203,25 @@
       </div>
     </section>
 
+    <!-- job boards Foundation searches and that currently work, A to Z -->
+    <section id="job-boards" class="section job-boards" aria-labelledby="job-boards-title">
+      <div class="container">
+        <h2 id="job-boards-title">Job Boards</h2>
+        <ul class="board-logos">
+          <li><img src="https://www.google.com/s2/favicons?domain=adzuna.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">Adzuna</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=charityjob.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">CharityJob</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=cv-library.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">CV-Library</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=gov.uk&sz=64" alt="" width="32" height="32" loading="lazy">GOV.UK Find a Job</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=uk.indeed.com&sz=64" alt="" width="32" height="32" loading="lazy">Indeed UK</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=jobs.ac.uk&sz=64" alt="" width="32" height="32" loading="lazy">jobs.ac.uk</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=lighthousefuturestrust.org.uk&sz=64" alt="" width="32" height="32" loading="lazy">Lighthouse Futures Trust</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=www.jobs.nhs.uk&sz=64" alt="" width="32" height="32" loading="lazy">NHS Jobs</li>
+          <li><img src="https://www.google.com/s2/favicons?domain=reed.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">Reed</li>
+          <li><img src="https://icons.duckduckgo.com/ip3/www.totaljobs.com.ico" alt="" width="32" height="32" loading="lazy">Totaljobs</li>
+        </ul>
+      </div>
+    </section>
+
     <!-- faq -->
     <section id="faq" class="section section-tint">
       <div class="container narrow">
@@ -208,33 +242,6 @@
           <summary>Why does Windows warn me when I install it?</summary>
           <p>Windows shows a warning for new apps that aren't signed with a paid code-signing certificate. Click <b>More info</b> and then <b>Run anyway</b> to install.</p>
         </details>
-      </div>
-    </section>
-
-    <!-- every job board Foundation searches, with its logo -->
-    <section id="job-boards" class="section job-boards" aria-labelledby="job-boards-title">
-      <div class="container">
-        <h2 id="job-boards-title">Job boards Foundation searches</h2>
-        <ul class="board-logos">
-          <li><img src="https://www.google.com/s2/favicons?domain=reed.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">Reed</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=uk.indeed.com&sz=64" alt="" width="32" height="32" loading="lazy">Indeed UK</li>
-          <li><img src="https://icons.duckduckgo.com/ip3/www.totaljobs.com.ico" alt="" width="32" height="32" loading="lazy">Totaljobs</li>
-          <li><img src="https://www.cwjobs.co.uk/favicon.ico" alt="" width="32" height="32" loading="lazy">CWJobs</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=linkedin.com&sz=64" alt="" width="32" height="32" loading="lazy">LinkedIn</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=cv-library.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">CV-Library</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=adzuna.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">Adzuna</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=glassdoor.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">Glassdoor UK</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=gov.uk&sz=64" alt="" width="32" height="32" loading="lazy">GOV.UK Find a Job</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=www.jobs.nhs.uk&sz=64" alt="" width="32" height="32" loading="lazy">NHS Jobs</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=charityjob.co.uk&sz=64" alt="" width="32" height="32" loading="lazy">CharityJob</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=jobs.ac.uk&sz=64" alt="" width="32" height="32" loading="lazy">jobs.ac.uk</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=roberthalf.com&sz=64" alt="" width="32" height="32" loading="lazy">Robert Half</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=lighthousefuturestrust.org.uk&sz=64" alt="" width="32" height="32" loading="lazy">Lighthouse Futures Trust</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=remoteok.com&sz=64" alt="" width="32" height="32" loading="lazy">Remote OK</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=weworkremotely.com&sz=64" alt="" width="32" height="32" loading="lazy">We Work Remotely</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=remotive.com&sz=64" alt="" width="32" height="32" loading="lazy">Remotive</li>
-          <li><img src="https://www.google.com/s2/favicons?domain=hiring.cafe&sz=64" alt="" width="32" height="32" loading="lazy">Hiring Cafe</li>
-        </ul>
       </div>
     </section>
   </main>
