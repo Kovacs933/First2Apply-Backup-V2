@@ -1,33 +1,33 @@
 # Start here — Foundation
 
-This folder is the Foundation project (saved 24 Oct 2026). Open **this folder** in Claude next
-time. The old `first2apply-master` folder on the Desktop is an untouched backup of the same work.
+This folder is the Foundation project. Open **this folder** in Claude next time.
 
-## Where we left off
+## Where things are
 
-Done:
-- UK job boards added (Reed, Totaljobs & CWJobs, CV-Library, Adzuna, NHS Jobs, GOV.UK Work Hub,
-  CharityJob, jobs.ac.uk), US-only boards hidden, Indeed/Glassdoor switched to their UK sites.
-- Renamed to Foundation with a new logo; "Search all UK boards" button on the Searches page.
-- Windows installer builds (`release\FoundationSetup.exe`) and works **on this PC only**.
+- **Desktop**
+  - **Foundation**: the app.
+  - **Update Foundation online**: uploads backend changes (database + functions) and can set the AI key.
+  - **Upload this**: the latest installer, ready to attach to a GitHub release.
+- **Old versions** (Desktop): earlier copies of the project, not used any more.
+- `launcher\shortcuts`: the one-off **Set up Foundation online** shortcut, plus Start/Stop for the local backend.
+- `linkedin\`: logo, banner and text for the LinkedIn page.
+- Website: https://kovacs933.github.io/Foundation/ (code in `website\`, publishes when pushed to GitHub).
 
-Next step — put the backend online so the installer works on other computers:
-1. Double-click **Set up Foundation online** on the Desktop.
-2. Paste a Supabase access token (the window explains how, the browser opens the right page).
-3. Wait for **ALL DONE** (about 10 minutes). It creates a Supabase organisation and project
-   (London), the database, the functions, and rebuilds `release\FoundationSetup.exe`.
-4. Tell Claude: "the setup said ALL DONE, test the installer".
+## Releasing a new version
 
-Last attempt stopped because the Supabase account had no organisation; the setup now creates one
-automatically.
+1. Claude builds it: `launcher\build-installer.ps1` makes `release\FoundationSetup.exe`.
+2. GitHub Desktop: **Push origin**.
+3. github.com/Kovacs933/Foundation/releases: **Draft a new release**, tag `vX.Y.Z`, attach
+   `FoundationSetup.exe` (keep that exact name), **Publish release**. The website's Download button
+   always gives the latest release.
+4. If the backend changed: double-click **Update Foundation online** on the Desktop.
 
-After that, in the Supabase dashboard > Authentication > URL Configuration, add `foundation://**`
-to Redirect URLs (needed for password-reset links).
+## Version 1.0.9 (25 Oct 2026)
 
-## Shortcuts on the Desktop
+CV Builder (AI or template, LinkedIn import, CV upload, PDF), Apply assistant for Saved jobs, posted dates,
+closed-job check, Key details on every job, Search again, Custom job board, gold theme, better Feedback page.
 
-- **Start Foundation** — starts the local server and opens the app (this PC).
-- **Stop Foundation** — closes it all.
-- **Set up Foundation online** — the one-off online setup above.
+Still to do by you: run **Update Foundation online** (turns on posted dates, closed-job checks, the new duplicate
+rules and AI CV writing; paste an OpenRouter key to switch on the AI features).
 
 More detail: `FOUNDATION.md`.
