@@ -104,6 +104,10 @@ const SITE_PROVIDER_QUERY_SELECTORS: Record<SiteProvider, SiteProviderQuerySelec
   [SiteProvider.jobsAcUk]: {
     description: ['#job-description'],
   },
+  // read from the MyNewTerm page's JobPosting data instead (parseLighthouseFuturesTrustJobDescription)
+  [SiteProvider.lighthouseFuturesTrust]: {
+    description: ['.vacancy-description'],
+  },
   [SiteProvider.custom]: {
     description: ['#job-description'],
   },
@@ -202,6 +206,8 @@ async function parseProviderJobDescription({
     case SiteProvider.charityJob:
     case SiteProvider.jobsAcUk:
       return parseJobDescriptionWithSelectors({ provider: site.provider, html });
+    case SiteProvider.lighthouseFuturesTrust:
+      return parseLighthouseFuturesTrustJobDescription({ html });
     case SiteProvider.custom:
       return await parseCustomJobDescription({ html, user, job, ...context });
   }
@@ -794,6 +800,44 @@ function parseJobDescriptionWithSelectors({
   return {
     description,
   };
+}
+
+/**
+ * Lighthouse Futures Trust vacancies open on MyNewTerm, whose page carries the advert in its schema.org JobPosting
+ * data (the description is HTML that has been escaped once more inside the JSON).
+ */
+function parseLighthouseFuturesTrustJobDescription({ html }: { html: string }): JobDescriptionUpdates {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  if (!document) return {};
+  const findPosting = (data: unknown): Record<string, unknown> | undefined => {
+    if (Array.isArray(data)) return data.map(findPosting).find(Boolean);
+    if (!data || typeof data !== 'object') return undefined;
+    const obj = data as Record<string, unknown>;
+    if (obj['@graph']) return findPosting(obj['@graph']);
+    return obj['@type'] === 'JobPosting' ? obj : undefined;
+  };
+  for (const script of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+    let posting: Record<string, unknown> | undefined;
+    try {
+      posting = findPosting(JSON.parse((script as Element).textContent));
+    } catch {
+      continue;
+    }
+    if (!posting || typeof posting.description !== 'string') continue;
+    // "&lt;p&gt;..." -> "<p>..."
+    const decoded = new DOMParser().parseFromString(`<div>${posting.description}</div>`, 'text/html')?.querySelector('div')
+      ?.textContent;
+    const value = (posting.baseSalary as { value?: { value?: unknown; unitText?: unknown } } | undefined)?.value;
+    const salary =
+      typeof value?.value === 'number'
+        ? `£${value.value.toLocaleString('en-GB')}${value.unitText === 'YEAR' ? ' a year' : value.unitText === 'HOUR' ? ' an hour' : ''}`
+        : undefined;
+    return {
+      description: decoded ? turndownService.turndown(decoded) : undefined,
+      ...(salary && { salary }),
+    };
+  }
+  return {};
 }
 
 /**

@@ -391,6 +391,56 @@ export function parseCharityJobJobs({ siteId, html }: { siteId: number; html: st
 }
 
 /**
+ * Lighthouse Futures Trust (lighthousefuturestrust.org.uk/vacancies-2/). Its paid vacancies come from a
+ * MyNewTerm widget the page loads with JavaScript; each one links to its own MyNewTerm job page.
+ */
+export function parseLighthouseFuturesTrustJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+  const document = parseDocument(html);
+
+  const jobElements = Array.from(document.querySelectorAll('.mnt-vacancy-content-item')) as Element[];
+  if (jobElements.length === 0) {
+    // the widget loaded but lists nothing: no vacancies right now; no widget at all: the page didn't finish loading
+    return document.querySelector('#mnt-parent-container') ? EMPTY_LIST : LIST_NOT_FOUND;
+  }
+
+  return toResult(jobElements, (el) => {
+    const link = el.querySelector('a.orange-link-wrapper') ?? el.querySelector('a[href*="mynewterm.com"]');
+    const href = link?.getAttribute('href')?.trim();
+    const titleEl = el.querySelector('.orange-vacancy-title');
+    // the title is followed by the reference number in <small>
+    const reference = text(titleEl?.querySelector('small'));
+    const title = text(titleEl)?.replace(reference ?? '', '').trim();
+    if (!href || !title) return null;
+    const externalUrl = href.startsWith('//') ? `https:${href}` : href;
+
+    const details = (Array.from(el.querySelectorAll('dd')) as Element[]).map((dd) => ({
+      icon: dd.querySelector('i')?.getAttribute('class') ?? '',
+      value: text(dd),
+    }));
+    const location = details.find((d) => d.icon.includes('fa-map-marker'))?.value;
+    const contract = details.find((d) => d.icon.includes('fa-clock'))?.value;
+    const salary = details.find((d) => d.icon.includes('fa-gbp'))?.value ?? extractGbpSalary(text(el));
+    const closes = (Array.from(el.querySelectorAll('div')) as Element[])
+      .map((div) => text(div))
+      .find((t) => !!t && /^\d+ Days? Remaining/i.test(t));
+
+    return {
+      siteId,
+      externalId: `lighthouse-${reference ?? externalUrl.split('/').slice(-2).join('-')}`,
+      externalUrl,
+      title,
+      companyName: 'Lighthouse Futures Trust',
+      companyLogo: imageSrc(el.querySelector('img')),
+      location,
+      salary,
+      jobType: detectJobType(location),
+      labels: [],
+      tags: [contract, closes?.split('•')[1]?.trim()].filter((t): t is string => !!t),
+    };
+  });
+}
+
+/**
  * jobs.ac.uk (universities, research and education).
  */
 export function parseJobsAcUkJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {

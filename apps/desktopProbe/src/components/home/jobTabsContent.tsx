@@ -444,14 +444,21 @@ export function JobTabsContent({
                     onSearchJobs={onSearchJobs}
                   />
                   {statusItem === 'archived' && listing.archived > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3">
+                    // the Apply assistant is switched off for now: shown greyed out as Unavailable
+                    <div
+                      aria-disabled="true"
+                      className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 opacity-50"
+                    >
                       <p className="text-sm">
                         Apply to your {listing.archived} saved {listing.archived === 1 ? 'job' : 'jobs'} one after another,
                         with your details filled in for you.
                       </p>
-                      <Button size="sm" disabled={isStartingApply} onClick={startApplying}>
-                        {isStartingApply ? 'Starting ...' : 'Apply to saved jobs'}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Unavailable</span>
+                        <Button size="sm" disabled className="cursor-not-allowed">
+                          Apply to saved jobs
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -341,6 +341,14 @@ export async function saveCvPdf({ html, fileName }: { html: string; fileName: st
 }
 
 /**
+ * How many A4 pages a CV (as a full HTML page) prints to.
+ */
+export async function countCvPages({ html }: { html: string }): Promise<number> {
+  const { pages } = await _mainProcessApiCall<{ pages: number }>('count-cv-pages', { html });
+  return pages;
+}
+
+/**
  * Change the status of all jobs from one status to another.
  */
 export async function changeAllJobsStatus({ from, to }: { from: JobStatus; to: JobStatus }): Promise<void> {

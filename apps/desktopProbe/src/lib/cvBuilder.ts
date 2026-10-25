@@ -428,9 +428,9 @@ export function buildTemplateCv({
       .map(({ bullet }) => bullet),
   );
 
-  // Relevant skills (skills-based CV): the five that matter most for this role, ranked by what the role's adverts
-  // and saved jobs ask for. The candidate's own skills come first; an employer skill they didn't list only shows
-  // when their own job points show it. Each gets up to two of those points as evidence, never the same point twice.
+  // Key skills: the five that matter most for this role, ranked by what the role's adverts and saved jobs ask for,
+  // one bullet each. The candidate's own skills come first; an employer skill they didn't list only shows when their
+  // own job points show it. Each bullet carries one of those points as evidence, never the same point twice.
   const used = new Set<string>();
   const evidenceFor = (skill: string) => {
     const pattern = knownSkill(skill)?.pattern;
@@ -454,7 +454,7 @@ export function buildTemplateCv({
       }))
       .filter((p) => p.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 2)
+      .slice(0, 1)
       .map((p) => p.point);
   };
   const skillChoices = [
@@ -477,14 +477,21 @@ export function buildTemplateCv({
   const toCvRole = (e: CvProfile['experience'][number], pointsIndex: number, maxBullets: number) => {
     const unused = jobPoints[pointsIndex].filter((p) => !used.has(p));
     const bullets = unused.length ? unused : jobPoints[pointsIndex].slice(0, 1);
-    return { title: e.title.trim(), employer: e.employer.trim(), dates: e.dates?.trim() ?? '', bullets: bullets.slice(0, maxBullets) };
+    return {
+      title: e.title.trim(),
+      employer: e.employer.trim(),
+      location: e.location?.trim() ?? '',
+      dates: e.dates?.trim() ?? '',
+      bullets: bullets.slice(0, maxBullets).map(ukSpelling),
+    };
   };
 
   return {
-    summary,
-    skills,
+    // UK spelling throughout the candidate's own words ("organized" -> "organised")
+    summary: ukSpelling(summary),
+    skills: skills.map(ukSpelling),
     credentials,
-    relevantSkills,
+    relevantSkills: relevantSkills.map((s) => ({ skill: ukSpelling(s.skill), points: s.points.map(ukSpelling) })),
     experience: jobs.map((e, index) => toCvRole(e, index, index < 2 ? 4 : 2)),
     volunteering: volunteer.map((e, index) => toCvRole(e, jobs.length + index, 2)),
     education: profile.education
@@ -649,7 +656,11 @@ function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean)
       if (isNewPoint) points.push(stripBullet(l));
       else points[points.length - 1] += ` ${l}`;
     });
-    roles.push({ title: before[0], employer: before[1] ?? '', dates, details: points.join('\n') });
+    // the town after the dates ("Leeds, England" -> "Leeds"); the country is assumed on a UK CV
+    const location = (parts[dateIndex + 1] ?? '')
+      .replace(/,?\s*(England|Scotland|Wales|Northern Ireland|United Kingdom|UK)\s*$/i, '')
+      .trim();
+    roles.push({ title: before[0], employer: before[1] ?? '', location, dates, details: points.join('\n') });
   });
 
   return { experience, education, qualifications, volunteering };
@@ -799,41 +810,225 @@ const joinList = (items: string[]) =>
     ? items.join('')
     : `${items.slice(0, -1).join(', ')}${items.length > 2 && items.some((i) => / and /.test(i)) ? ',' : ''} and ${items[items.length - 1]}`;
 
+// -ize words that UK English spells -ise (an allowlist, so "size", "prize" and "citizen" are left alone)
+const IZE_STEMS =
+  'organ|anal|paral|catal|maxim|minim|priorit|recogn|special|util|optim|custom|final|summar|emphas|mobil|real|standard|central|apolog|categor|character|critic|familiar|harmon|memor|modern|normal|person|stabil|synchron|visual|author|capital|computer|digital|energ|general|ideal|jeopard|local|neutral|penal|rational|subsid|theor|vandal|personal|sympath|social|monet|revital|scrutin|equal|commercial|emotional|hospital|immun|industrial|institutional|legal|tranquil';
+const IZE = new RegExp(`\\b(${IZE_STEMS})(i|y)z(e|es|ed|ing|er|ers|ation|ations|ational)\\b`, 'gi');
+const US_WORDS: Array<[RegExp, string]> = [
+  [/\bcolor(s|ed|ful|ing)?\b/gi, 'colour$1'],
+  [/\bbehavior(s|al|ally)?\b/gi, 'behaviour$1'],
+  [/\bfavor(s|ed|ite|ites|able)?\b/gi, 'favour$1'],
+  [/\bhonor(s|ed|able)?\b/gi, 'honour$1'],
+  [/\blabor(s|ed)?\b/gi, 'labour$1'],
+  [/\bneighbor(s|hood|hoods)?\b/gi, 'neighbour$1'],
+  [/\bcenter(s)?\b/gi, 'centre$1'],
+  [/\bcentered\b/gi, 'centred'],
+  [/\btheater(s)?\b/gi, 'theatre$1'],
+  [/\bfulfill(ment|s)?\b/gi, 'fulfil$1'],
+  [/\benroll(ment|s)?\b/gi, 'enrol$1'],
+  [/\b(travel|cancel|model|counsel|label|level|signal|fuel)(ed|ing|er|ers|or|ors)\b/gi, '$1l$2'],
+  [/\bcatalog(s)?\b/gi, 'catalogue$1'],
+  [/\bdefense\b/gi, 'defence'],
+  [/\boffense\b/gi, 'offence'],
+  [/\bjudgment(s)?\b/gi, 'judgement$1'],
+  [/\bgray\b/gi, 'grey'],
+];
+const keepCase = (original: string, replacement: string) =>
+  original === original.toUpperCase() && original.length > 1
+    ? replacement.toUpperCase()
+    : /^[A-Z]/.test(original)
+      ? replacement[0].toUpperCase() + replacement.slice(1)
+      : replacement;
+
+/** UK English spelling of the candidate's words: organized -> organised, color -> colour, traveled -> travelled. */
+export function ukSpelling(text: string): string {
+  let out = text.replace(IZE, (match, stem: string, vowel: string, ending: string) =>
+    keepCase(match, `${stem}${vowel}s${ending}`.toLowerCase()),
+  );
+  for (const [pattern, replacement] of US_WORDS) {
+    out = out.replace(pattern, (match: string) =>
+      keepCase(match, match.replace(new RegExp(pattern.source, 'i'), replacement).toLowerCase()),
+    );
+  }
+  return out;
+}
+
+/**
+ * Dates in the UK CV style "Month Year – Month Year": "May - December 2025" -> "May 2025 – December 2025",
+ * "Sep 2026 - present · 2 mos" -> "Sep 2026 – Present". Dates it can't read are kept as written.
+ */
+export function formatUkDates(dates: string): string {
+  const cleaned = dates.split('·')[0].trim();
+  const parts = cleaned.split(/\s*(?:–|—|\bto\b|\s-\s|-)\s*/i).filter(Boolean);
+  if (parts.length !== 2) return cleaned;
+  const tidy = (part: string) =>
+    /^(present|now|current|today|ongoing)$/i.test(part) ? 'Present' : part.replace(/^[a-z]/, (c) => c.toUpperCase());
+  const [first, end] = parts.map(tidy);
+  let start = first;
+  const endYear = end.match(/\b(19|20)\d{2}\b/)?.[0];
+  // "May" in "May - December 2025" takes the end year
+  if (endYear && new RegExp(`^${MONTH}$`, 'i').test(start)) start = `${start} ${endYear}`;
+  return `${start} – ${end}`;
+}
+
+export type ProfileStarter = { id: string; label: string; text: string };
+
+/**
+ * Role-specific UK starter profiles (who you are, what you bring, what you want next), filled in with the candidate's
+ * own details. They're starting points to edit in the profile box, never added to a CV on their own.
+ */
+export function profileStarters({
+  profile,
+  targetRole,
+  topSkills,
+}: {
+  profile: CvProfile;
+  targetRole: string;
+  topSkills: string[];
+}): ProfileStarter[] {
+  const latest = profile.experience.find((e) => e.title.trim());
+  const role = targetRole.trim() || latest?.title.trim() || '';
+  const title = latest?.title.trim() || role || 'Candidate';
+  const where = profile.location?.trim() ? ` based in ${profile.location.trim()}` : '';
+  const at = latest?.employer.trim() ? `, currently at ${latest.employer.trim()}` : '';
+  const skills = (fallback: string[]) =>
+    joinList((topSkills.length ? topSkills : fallback).slice(0, 3).map((s) => (COMMON_SKILLS.has(s) ? s.toLowerCase() : s)));
+  const goal = (what: string) => (role ? `Now looking for ${aOrAn(role)} ${role} role ${what}.` : `Now looking for a role ${what}.`);
+  const starters: ProfileStarter[] = [
+    {
+      id: 'support',
+      label: 'Support, care and employment support',
+      text: `Caring and reliable ${title}${where}${at}. Skilled in ${skills(['safeguarding', 'communication', 'person-centred support'])}, with a person-centred approach that helps people build confidence and independence. ${goal('where I can make a real difference to the people I support')}`,
+    },
+    {
+      id: 'customer',
+      label: 'Customer service and retail',
+      text: `Friendly and customer-focused ${title}${where}${at}. Brings ${skills(['customer service', 'communication', 'teamwork'])}, and stays calm and professional in busy, fast-paced settings. ${goal('where I can give customers an excellent experience')}`,
+    },
+    {
+      id: 'admin',
+      label: 'Office and administration',
+      text: `Organised and detail-focused ${title}${where}${at}. Experienced in ${skills(['administration', 'Microsoft Office', 'organisation'])}, keeping records accurate and work on schedule. ${goal('where I can help a team run smoothly')}`,
+    },
+    {
+      id: 'education',
+      label: 'Education and training',
+      text: `Patient and encouraging ${title}${where}${at}. Skilled in ${skills(['training and mentoring', 'communication', 'SEN support'])}, adapting my approach so every learner can take part and progress. ${goal('where I can help learners reach their potential')}`,
+    },
+    {
+      id: 'health',
+      label: 'Healthcare',
+      text: `Compassionate ${title}${where}${at}. Brings ${skills(['patient care', 'communication', 'teamwork'])}, with a focus on dignity, safety and high standards of care. ${goal('where I can deliver safe, high-quality care')}`,
+    },
+    {
+      id: 'tech',
+      label: 'Technology and digital',
+      text: `Motivated ${title}${where}${at}. Solid grounding in ${skills(['problem solving', 'data analysis', 'Excel'])}, and quick to learn new tools and systems. ${goal('where I can build reliable, useful products with a strong team')}`,
+    },
+    {
+      id: 'hospitality',
+      label: 'Hospitality and catering',
+      text: `Hard-working and welcoming ${title}${where}${at}. Brings ${skills(['customer service', 'food hygiene', 'teamwork'])}, and works well under pressure during busy services. ${goal('where I can help guests enjoy every visit')}`,
+    },
+    {
+      id: 'logistics',
+      label: 'Warehouse, driving and logistics',
+      text: `Reliable and safety-conscious ${title}${where}${at}. Experienced in ${skills(['warehouse operations', 'health and safety', 'stock control'])}, meeting targets accurately and on time. ${goal('where I can keep operations running safely and efficiently')}`,
+    },
+    {
+      id: 'graduate',
+      label: 'Graduate or first job',
+      text: `Motivated ${profile.education.find((e) => e.qualification.trim())?.qualification.trim() || 'school leaver'} graduate${where}. Brings ${skills(['communication', 'organisation', 'teamwork'])}, built through study, part-time work and volunteering. ${goal('where I can learn quickly and contribute from day one')}`,
+    },
+  ];
+  return starters.map((s) => ({ ...s, text: ukSpelling(s.text) }));
+}
+
+/** The starter that best fits the role the candidate wants. */
+export function suggestedStarter(targetRole: string, starters: ProfileStarter[]): ProfileStarter | undefined {
+  const role = targetRole.toLowerCase();
+  const id = /coach|support|care|carer|mentor|key ?worker|employ|advis|outreach|social/.test(role)
+    ? 'support'
+    : /teach|tutor|train|lectur|education|learning/.test(role)
+      ? 'education'
+      : /nurse|health|hca|clinic|nhs|pharma|therap/.test(role)
+        ? 'health'
+        : /develop|engineer|software|data|it |analyst|digital|tech/.test(role)
+          ? 'tech'
+          : /admin|office|receptio|secretar|assistant|clerk|coordinat/.test(role)
+            ? 'admin'
+            : /retail|sales|shop|store|customer|call cent/.test(role)
+              ? 'customer'
+              : /chef|kitchen|bar|waiter|hospitality|hotel|catering|barista/.test(role)
+                ? 'hospitality'
+                : /warehouse|driver|logistic|forklift|picker|operative|delivery/.test(role)
+                  ? 'logistics'
+                  : /graduate|trainee|apprentice|intern|junior|entry/.test(role)
+                    ? 'graduate'
+                    : undefined;
+  return starters.find((s) => s.id === id);
+}
+
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
 
-/** A complete, printable A4 HTML page for the CV (used for the preview and the PDF). */
-export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProfile }): string {
+/** A4 printable area with the CV's page margins (15mm top and bottom): where each new page starts. */
+export const CV_PAGE_CONTENT_MM = 297 - 30;
+
+/**
+ * A complete, printable A4 HTML page for the CV (used for the preview and the PDF). With `showPageBreaks`, the
+ * on-screen preview also marks where page 2 and page 3 would start.
+ */
+export function renderCvHtml({
+  cv,
+  profile,
+  showPageBreaks = false,
+}: {
+  cv: GeneratedCv;
+  profile: CvProfile;
+  showPageBreaks?: boolean;
+}): string {
   const e = escapeHtml;
-  const contact = [profile.email, profile.phone, profile.location, profile.linkedinUrl?.replace(/^https?:\/\/(www\.)?/, '')]
+  // no LinkedIn link: the CV Builder no longer asks for one
+  const contact = [
+    profile.email,
+    profile.phone,
+    profile.location,
+    // UK employers often filter on this, so it sits with the contact details
+    profile.rightToWork ? `Right to work: ${profile.rightToWork}` : '',
+  ]
     .map((v) => v?.trim())
     .filter(Boolean) as string[];
 
-  // Laid out like the University of Oxford Careers Service's skills-based CV: centred name and contact details,
-  // grey rules between sections, a career profile, the top skills with evidence, then work and education
+  // Laid out like the University of Oxford Careers Service's CV: centred name and contact details, grey rules
+  // between sections, a professional summary, five key skills, then work, volunteering and education
   const section = (title: string, body: string) => (body ? `<section><h2>${title}</h2>${body}</section>` : '');
   const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${e(i)}</li>`).join('')}</ul>` : '');
-  // "Title, Employer" in bold with the dates on the right
+  // "Title, Employer" in bold with the dates (Month Year – Month Year) on the right
   const heading = (main: string, dates?: string) =>
-    `<div class="row"><strong>${e(main)}</strong>${dates ? `<strong class="dates">${e(dates)}</strong>` : ''}</div>`;
+    `<div class="row"><strong>${e(main)}</strong>${dates ? `<strong class="dates">${e(formatUkDates(dates))}</strong>` : ''}</div>`;
 
-  // the five skills that matter most; each with its evidence when there is some, otherwise a plain bullet
-  const topSkills = cv.relevantSkills?.length ? cv.relevantSkills : cv.skills.slice(0, 5).map((skill) => ({ skill, points: [] as string[] }));
-  const withEvidence = topSkills.filter((s) => s.points.length);
+  // Key skills: five bullets, the skill in bold with one example from the candidate's own experience
+  const topSkills = (
+    cv.relevantSkills?.length ? cv.relevantSkills : cv.skills.map((skill) => ({ skill, points: [] as string[] }))
+  ).slice(0, 5);
   // every other skill on the candidate's list (which includes each "What employers want" skill they have) still
   // shows, on one line, so nothing employers ask for is left off; checks and licences are in the courses section
   const otherSkills = cv.skills.filter((s) => !topSkills.some((t) => t.skill === s));
-  const relevantSkills =
-    (withEvidence.length > 0
-      ? topSkills.map((s) => `<div class="item"><h3>${e(s.skill)}</h3>${list(s.points)}</div>`).join('')
-      : list(topSkills.map((s) => s.skill))) +
+  const keySkills =
+    (topSkills.length
+      ? `<ul>${topSkills
+          .map((s) => `<li><strong>${e(s.skill)}</strong>${s.points[0] ? ` – ${e(s.points[0])}` : ''}</li>`)
+          .join('')}</ul>`
+      : '') +
     (otherSkills.length ? `<p class="more"><strong>Other skills:</strong> ${otherSkills.map(e).join(', ')}</p>` : '');
 
+  // Job Title, Company Name, UK Location
   const roles = (items: GeneratedCv['experience']) =>
     items
       .map(
         (job) =>
-          `<div class="item">${heading([job.title, job.employer].filter(Boolean).join(', '), job.dates)}${list(job.bullets)}</div>`,
+          `<div class="item">${heading([job.title, job.employer, job.location].filter(Boolean).join(', '), job.dates)}${list(job.bullets)}</div>`,
       )
       .join('');
   const experience = roles(cv.experience);
@@ -875,14 +1070,33 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
   ul { margin: 2px 0 0; padding-left: 22px; }
   li { margin: 1px 0; }
   .more { margin-top: 8px; }
+  ${
+    showPageBreaks
+      ? // preview only: an A4 sheet with the print margins, and a dashed line where each new page starts
+        `@media screen {
+    html { background: #e9ecef; }
+    body { background: transparent; padding: 12px 0; }
+    .page { position: relative; overflow: hidden; width: 210mm; max-width: none; min-height: 297mm; padding: 15mm 18mm; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+    .page-break { position: absolute; left: 0; right: 0; border-top: 2px dashed #E8A55A; }
+    .page-break span { position: absolute; right: 6mm; top: -9px; padding: 0 6px; background: #fff; color: #b5772f; font-size: 9pt; font-weight: bold; }
+  }`
+      : ''
+  }
 </style></head>
 <body><div class="page">
+  ${
+    showPageBreaks
+      ? [1, 2, 3]
+          .map((n) => `<div class="page-break" style="top: ${15 + CV_PAGE_CONTENT_MM * n}mm"><span>Page ${n + 1}</span></div>`)
+          .join('')
+      : ''
+  }
   <header>
     <h1>${e(profile.fullName || 'Your name')}</h1>
     ${contact.length ? `<div class="contact">${contact.map((c) => `<div>${e(c)}</div>`).join('')}</div>` : ''}
   </header>
-  ${section('Career profile', cv.summary ? `<p>${e(cv.summary)}</p>` : '')}
-  ${section('Relevant skills', relevantSkills)}
+  ${section('Professional summary', cv.summary ? `<p>${e(cv.summary)}</p>` : '')}
+  ${section('Key skills', keySkills)}
   ${section('Work experience', experience)}
   ${section('Volunteering', volunteering)}
   ${section('Education', education)}

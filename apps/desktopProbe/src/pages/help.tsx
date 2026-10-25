@@ -8,18 +8,6 @@ export function HelpPage() {
       <h1 className="w-fit text-2xl font-medium tracking-wide">FAQs</h1>
 
       <Accordion type="single" collapsible className="w-full rounded-lg border px-6">
-        <AccordionItem value="item-2" className="py-2">
-          <AccordionTrigger className="text-lg font-normal hover:text-primary hover:no-underline">
-            Can the app apply to jobs for me?
-          </AccordionTrigger>
-          <AccordionContent className="text-base font-light">
-            It does most of the work. Save the jobs you like, then open the <b>Saved</b> tab and click{' '}
-            <b>Apply to saved jobs</b>. Foundation opens each application in turn and fills in your name, email, phone
-            and location from the <b>CV Builder</b>. You check the form, attach your CV and press Submit yourself, so
-            nothing is ever sent without you seeing it. Then click <b>Applied, next job</b> to move on.
-          </AccordionContent>
-        </AccordionItem>
-
         <AccordionItem value="item-3" className="py-2">
           <AccordionTrigger className="text-lg font-normal hover:text-primary hover:no-underline">
             Can it filter out jobs that I'm not interested in?

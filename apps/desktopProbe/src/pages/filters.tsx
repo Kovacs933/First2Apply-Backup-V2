@@ -226,7 +226,6 @@ export function FiltersPage() {
               <p className="text-sm font-medium">of your town or postcode</p>
               <Input
                 value={locationCenter}
-                placeholder="Leeds or LS6 2NU"
                 onChange={(e) => setLocationCenter(e.target.value)}
                 maxLength={60}
                 className="bg-background text-base"
@@ -236,9 +235,6 @@ export function FiltersPage() {
           {radiusMiles && !locationCenter.trim() && (
             <p className="text-sm text-destructive/90">Enter your town or postcode to use the distance limit.</p>
           )}
-          <p className="text-sm text-muted-foreground">
-            Applies to new jobs from now on. Distances are as the crow flies.
-          </p>
         </div>
       </section>
 

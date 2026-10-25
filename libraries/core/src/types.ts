@@ -27,6 +27,8 @@ export enum SiteProvider {
   workHub = 'workHub',
   charityJob = 'charityJob',
   jobsAcUk = 'jobsAcUk',
+  // single-employer vacancy pages
+  lighthouseFuturesTrust = 'lighthouseFuturesTrust',
 
   // generic provider for sites not in the list above
   custom = 'custom',
@@ -115,26 +117,29 @@ export type CvProfile = {
   phone?: string;
   location?: string;
   linkedinUrl?: string;
+  // UK right to work, shown on the CV since many UK employers filter on it ('' = not shown)
+  rightToWork?: '' | 'British citizen' | 'Settled / pre-settled status' | 'Requires visa sponsorship';
   summary?: string;
   skills: string[];
-  experience: Array<{ title: string; employer: string; dates?: string; details?: string }>;
+  // location: the UK town the job was in
+  experience: Array<{ title: string; employer: string; location?: string; dates?: string; details?: string }>;
   education: Array<{ qualification: string; place: string; dates?: string }>;
   // training courses and certificates (Care Certificate, Level 2 courses ...), kept apart from school and university
   qualifications?: Array<{ qualification: string; place: string; dates?: string }>;
   // unpaid roles, kept apart from paid work (employer is the organisation)
-  volunteering?: Array<{ title: string; employer: string; dates?: string; details?: string }>;
+  volunteering?: Array<{ title: string; employer: string; location?: string; dates?: string; details?: string }>;
 };
 
 /** A finished CV, ready to lay out. */
 export type GeneratedCv = {
   summary: string;
   skills: string[];
-  experience: Array<{ title: string; employer: string; dates: string; bullets: string[] }>;
+  experience: Array<{ title: string; employer: string; location?: string; dates: string; bullets: string[] }>;
   education: Array<{ qualification: string; place: string; dates: string }>;
   // checks and licences employers screen for (DBS, driving licence, ...)
   credentials?: string[];
   qualifications?: Array<{ qualification: string; place: string; dates: string }>;
-  volunteering?: Array<{ title: string; employer: string; dates: string; bullets: string[] }>;
+  volunteering?: Array<{ title: string; employer: string; location?: string; dates: string; bullets: string[] }>;
   // skills-based layout: the top skills, each with the points from the candidate's jobs that show it
   relevantSkills?: Array<{ skill: string; points: string[] }>;
 };

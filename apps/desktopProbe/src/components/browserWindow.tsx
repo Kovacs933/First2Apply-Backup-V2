@@ -135,8 +135,10 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
     };
 
     return (
-      // above the sidebar (z-50), which would otherwise show through the header bar
-      <div className="justify-left fixed bottom-0 left-0 right-0 top-0 z-[60]">
+      // above the sidebar (z-50), which would otherwise show through the header bar.
+      // !m-0: pages that space their sections (space-y-*) would otherwise add a top margin and push this bar
+      // down under the web page, hiding "Back to Foundation" and "Add LinkedIn profile"
+      <div className="justify-left fixed bottom-0 left-0 right-0 top-0 z-[60] !m-0">
         <div className="flex h-[50px] w-full items-center border-b bg-background px-4">
           {/* a clear way back to the app, e.g. once LinkedIn is signed in */}
           <Button

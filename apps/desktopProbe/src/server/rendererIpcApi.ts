@@ -259,6 +259,21 @@ export function initRendererIpcApi({
     }),
   );
 
+  // how many A4 pages the CV prints to, made exactly like the downloaded PDF (for the 1 to 2 page check)
+  ipcMain.handle('count-cv-pages', async (event, { html }) =>
+    _apiCall(async () => {
+      const pdfWindow = new BrowserWindow({ show: false, webPreferences: { javascript: false } });
+      try {
+        await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        const pdf = await pdfWindow.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+        // each page is a "/Type /Page" object (the page list itself is "/Type /Pages")
+        return { pages: (pdf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length };
+      } finally {
+        pdfWindow.destroy();
+      }
+    }),
+  );
+
   ipcMain.handle('change-all-job-status', async (event, { from, to }) =>
     _apiCall(async () => {
       const job = await supabaseApi.changeAllJobStatus({ from, to });

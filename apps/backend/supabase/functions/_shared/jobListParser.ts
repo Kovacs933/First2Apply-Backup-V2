@@ -19,6 +19,7 @@ import {
   parseCharityJobJobs,
   parseCvLibraryJobs,
   parseJobsAcUkJobs,
+  parseLighthouseFuturesTrustJobs,
   parseNhsJobs,
   parseReedJobs,
   parseTotaljobsJobs,
@@ -296,6 +297,8 @@ async function parseSiteJobsList({
       return parseCharityJobJobs({ siteId: site.id, html });
     case SiteProvider.jobsAcUk:
       return parseJobsAcUkJobs({ siteId: site.id, html });
+    case SiteProvider.lighthouseFuturesTrust:
+      return parseLighthouseFuturesTrustJobs({ siteId: site.id, html });
     case SiteProvider.custom:
       return parseCustomJobs({ siteId: site.id, html, url, ...context });
   }

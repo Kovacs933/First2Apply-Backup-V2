@@ -1,7 +1,6 @@
 import { Cross2Icon, PlusIcon } from '@radix-ui/react-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { BrowserWindow, BrowserWindowHandle } from '@/components/browserWindow';
 import { Icons } from '@/components/icons';
 import { useError } from '@/hooks/error';
 import {
@@ -9,6 +8,8 @@ import {
   buildTemplateCv,
   candidateHasSkill,
   findCvImprovements,
+  profileStarters,
+  suggestedStarter,
   cvDataStrength,
   findEmployerSkills,
   isChosenJob,
@@ -20,9 +21,9 @@ import { SavedCv, cvFolders, loadCvLibrary, newCvId, saveCvLibrary } from '@/lib
 import { CvBuilderState, loadCvBuilderState, saveCvBuilderState } from '@/lib/cvProfileStore';
 import {
   CvSourceJob,
+  countCvPages,
   generateCv,
   listJobsWithDescriptions,
-  overlayBrowserPageText,
   readCvFile,
   saveCvPdf,
 } from '@/lib/electronMainSdk';
@@ -51,8 +52,13 @@ export function CvPage() {
   const mode: CvBuilderState['mode'] = AI_WRITING_AVAILABLE ? state.mode : 'template';
   const update = (changes: Partial<SavedState>) => setState((current) => ({ ...current, ...changes }));
   const updateProfile = (changes: Partial<CvProfile>) => update({ profile: { ...profile, ...changes } });
-  const qualifications = profile.qualifications ?? [];
-  const volunteering = profile.volunteering ?? [];
+  // like Education, each starts with one empty box to fill in
+  const qualifications = profile.qualifications?.length
+    ? profile.qualifications
+    : [{ qualification: '', place: '', dates: '' }];
+  const volunteering = profile.volunteering?.length
+    ? profile.volunteering
+    : [{ title: '', employer: '', dates: '', details: '' }];
 
   const [skillsText, setSkillsText] = useState(profile.skills.join(', '));
   const [foundJobs, setFoundJobs] = useState<CvSourceJob[]>([]);
@@ -84,7 +90,7 @@ export function CvPage() {
   const importText = (text: string, source: string, pageTitle?: string, extra: Partial<CvProfile> = {}) => {
     const found = { ...parseCvText(text, pageTitle), ...extra };
     const filled: Partial<CvProfile> = {};
-    (['fullName', 'email', 'phone', 'location', 'linkedinUrl'] as const).forEach((key) => {
+    (['fullName', 'email', 'phone', 'location'] as const).forEach((key) => {
       if (found[key] && !profile[key]?.trim()) filled[key] = found[key];
     });
     // jobs and qualifications from the CV are added after the ones already typed (empty rows are replaced),
@@ -153,34 +159,6 @@ export function CvPage() {
   const onRemoveCv = () =>
     setState((current) => ({ ...current, existingCv: withoutUploadedCv(current), uploadedCv: undefined }));
 
-  // LinkedIn: open the profile in the in-app browser (signed in there), then read the page
-  const linkedinBrowserRef = useRef<BrowserWindowHandle>(null);
-  const [linkedinInput, setLinkedinInput] = useState(profile.linkedinUrl ?? '');
-  const onOpenLinkedin = async () => {
-    const url = linkedinInput.trim();
-    try {
-      await linkedinBrowserRef.current?.open(
-        /linkedin\.com\/in\//i.test(url) ? (url.startsWith('http') ? url : `https://${url}`) : 'https://www.linkedin.com/in/me/',
-      );
-    } catch (error) {
-      handleError({ error, title: "Couldn't open LinkedIn" });
-    }
-  };
-  const onImportLinkedin = async () => {
-    try {
-      const page = await overlayBrowserPageText();
-      await linkedinBrowserRef.current?.finish();
-      if (!/linkedin\.com\/in\//i.test(page.url)) {
-        throw new Error('Open your own LinkedIn profile page first (linkedin.com/in/...), then click Add LinkedIn profile.');
-      }
-      const profileUrl = page.url.split('?')[0];
-      setLinkedinInput(profileUrl);
-      importText(page.text, 'Your LinkedIn profile', page.title, { linkedinUrl: profileUrl });
-    } catch (error) {
-      handleError({ error, title: "Couldn't import your LinkedIn profile" });
-    }
-  };
-
   useEffect(() => {
     listJobsWithDescriptions()
       .then(setFoundJobs)
@@ -193,6 +171,23 @@ export function CvPage() {
   const savedRoleJobs = roleJobs.filter(isChosenJob).length;
   const strength = useMemo(() => cvDataStrength(roleJobs), [roleJobs]);
   const improvements = useMemo(() => findCvImprovements(roleJobs, profile), [roleJobs, profile]);
+
+  // UK starter profiles filled in with the candidate's details, the one that fits the role first
+  const starters = useMemo(() => {
+    const ranked = employerSkills.map((e) => e.skill).filter((s) => candidateHasSkill(profile, s));
+    const topSkills = [...ranked, ...profile.skills.filter((s) => !ranked.some((r) => r.toLowerCase() === s.toLowerCase()))];
+    return profileStarters({ profile, targetRole, topSkills });
+  }, [profile, targetRole, employerSkills]);
+  const recommendedStarter = suggestedStarter(targetRole, starters);
+  const orderedStarters = recommendedStarter
+    ? [recommendedStarter, ...starters.filter((s) => s.id !== recommendedStarter.id)]
+    : starters;
+  const applyStarter = (id: string) => {
+    const starter = starters.find((s) => s.id === id);
+    if (!starter) return;
+    if (profile.summary?.trim() && !window.confirm('Replace your professional summary with this template?')) return;
+    updateProfile({ summary: starter.text });
+  };
 
   const setSkills = (text: string) => {
     setSkillsText(text);
@@ -239,6 +234,28 @@ export function CvPage() {
   };
 
   const cvHtml = cv ? renderCvHtml({ cv, profile: openedProfile ?? profile }) : '';
+  // the preview marks where page 2 and 3 start; the PDF is made from cvHtml without the marks
+  const previewHtml = cv ? renderCvHtml({ cv, profile: openedProfile ?? profile, showPageBreaks: true }) : '';
+
+  // UK length standard: 1 page for entry level, up to 2 for experienced candidates (counted from the real PDF)
+  const [pageCount, setPageCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!cvHtml) return setPageCount(null);
+    let current = true;
+    countCvPages({ html: cvHtml })
+      .then((pages) => current && setPageCount(pages))
+      .catch(() => current && setPageCount(null));
+    return () => {
+      current = false;
+    };
+  }, [cvHtml]);
+  const isEntryLevel = useMemo(() => {
+    const years = (openedProfile ?? profile).experience
+      .flatMap((e): string[] => (e.dates ?? '').match(/\b(19|20)\d{2}\b/g) ?? [])
+      .map(Number);
+    return years.length === 0 || new Date().getFullYear() - Math.min(...years) < 2 || /graduate|trainee|apprentice|junior|entry/i.test(targetRole);
+  }, [openedProfile, profile, targetRole]);
+  const pageLimit = isEntryLevel ? 1 : 2;
   const downloadPdf = async (html: string, owner: CvProfile, role: string) => {
     setIsSaving(true);
     try {
@@ -349,33 +366,6 @@ export function CvPage() {
         </section>
       )}
 
-      {/* quick start: bring in what the candidate already has */}
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-lg font-medium">Get started faster</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Bring in your LinkedIn profile or your current CV, and Foundation fills in what it can.
-        </p>
-        <div className="mt-4 space-y-1.5">
-          <Label htmlFor="linkedin-url" className="flex items-center gap-2">
-            <Icons.linkedin className="h-5 w-5" />
-            Link your LinkedIn
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              id="linkedin-url"
-              value={linkedinInput}
-              placeholder="linkedin.com/in/your-name"
-              onChange={(e) => setLinkedinInput(e.target.value)}
-              className="min-w-0 bg-background"
-            />
-            <Button variant="default" className="shrink-0 gap-2" onClick={onOpenLinkedin}>
-              <Icons.linkedin className="h-4 w-4" />
-              Add LinkedIn
-            </Button>
-          </div>
-        </div>
-      </section>
-
       <section className="rounded-lg border border-border bg-card p-5">
         <Button variant="default" onClick={onUploadCv}>
           Upload your current CV
@@ -396,17 +386,6 @@ export function CvPage() {
           </div>
         )}
       </section>
-
-      <BrowserWindow
-        ref={linkedinBrowserRef}
-        onClose={() => {}}
-        label="Your LinkedIn profile"
-        customActionButton={{
-          text: 'Add LinkedIn profile',
-          onClick: onImportLinkedin,
-          tooltip: 'Bring this profile into the CV Builder',
-        }}
-      />
 
       {/* 1. target role + what employers want */}
       <section className="space-y-3">
@@ -531,21 +510,53 @@ export function CvPage() {
             placeholder="Leeds"
             onChange={(v) => updateProfile({ location: v })}
           />
-          <Field
-            label="LinkedIn profile"
-            value={profile.linkedinUrl ?? ''}
-            placeholder="linkedin.com/in/your-name"
-            onChange={(v) => updateProfile({ linkedinUrl: v })}
-          />
+          {/* many UK employers filter on this, so it goes next to the contact details on the CV */}
+          <div className="space-y-1.5">
+            <Label htmlFor="right-to-work">Right to work in the UK</Label>
+            <select
+              id="right-to-work"
+              value={profile.rightToWork ?? ''}
+              onChange={(e) => updateProfile({ rightToWork: e.target.value as CvProfile['rightToWork'] })}
+              className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+            >
+              <option value="">Don't show on my CV</option>
+              <option value="British citizen">British citizen</option>
+              <option value="Settled / pre-settled status">Settled / pre-settled status</option>
+              <option value="Requires visa sponsorship">Requires visa sponsorship</option>
+            </select>
+          </div>
         </div>
 
+        {/* professional summary: who you are, what you bring, what you want next (3 to 4 sentences) */}
         <div className="space-y-1.5">
-          <Label>A few lines about you</Label>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <Label htmlFor="profile-summary">Professional summary</Label>
+              <p className="text-sm text-muted-foreground">
+                3 to 4 sentences: who you are, what you bring, and the job you want next.
+              </p>
+            </div>
+            <select
+              aria-label="Start from a template"
+              value=""
+              onChange={(e) => applyStarter(e.target.value)}
+              className="h-9 max-w-full rounded-md border border-input bg-card px-2 text-sm"
+            >
+              <option value="">Start from a template ...</option>
+              {orderedStarters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                  {s.id === recommendedStarter?.id ? ' (suggested)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
           <Textarea
+            id="profile-summary"
             value={profile.summary ?? ''}
-            placeholder="What you do, what you're good at, and what you're looking for. Leave blank and Foundation will write one."
+            placeholder="Leave blank and Foundation will write one from your details."
             onChange={(e) => updateProfile({ summary: e.target.value })}
-            className="bg-card"
+            className="min-h-[96px] bg-card"
           />
         </div>
 
@@ -566,13 +577,19 @@ export function CvPage() {
               <RemoveButton
                 onClick={() => updateProfile({ experience: profile.experience.filter((_, i) => i !== index) })}
               />
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Field label="Job title" value={job.title} onChange={(v) => setItem('experience', index, { title: v })} />
-                <Field label="Employer" value={job.employer} onChange={(v) => setItem('experience', index, { employer: v })} />
+                <Field label="Company" value={job.employer} onChange={(v) => setItem('experience', index, { employer: v })} />
+                <Field
+                  label="Location"
+                  value={job.location ?? ''}
+                  placeholder="Leeds"
+                  onChange={(v) => setItem('experience', index, { location: v })}
+                />
                 <Field
                   label="Dates"
                   value={job.dates ?? ''}
-                  placeholder="Mar 2022 - present"
+                  placeholder="Mar 2022 - Present"
                   onChange={(v) => setItem('experience', index, { dates: v })}
                 />
               </div>
@@ -580,10 +597,13 @@ export function CvPage() {
                 <Label>What you did</Label>
                 <Textarea
                   value={job.details ?? ''}
-                  placeholder={'One thing per line:\nHandled 50+ customer queries a day\nTrained 3 new team members'}
+                  placeholder={
+                    'One achievement per line, starting with an action word and ending with the result:\nOrganised weekly activity sessions for 15 students, raising attendance\nAnalysed stock records each week, cutting ordering errors'
+                  }
                   onChange={(e) => setItem('experience', index, { details: e.target.value })}
                   className="min-h-[90px]"
                 />
+                <BulletTip />
               </div>
             </div>
           ))}
@@ -666,19 +686,21 @@ export function CvPage() {
           {volunteering.map((role, index) => (
             <div key={index} className="relative space-y-3 rounded-lg border border-border bg-card p-4">
               <RemoveButton onClick={() => updateProfile({ volunteering: volunteering.filter((_, i) => i !== index) })} />
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Field label="Role" value={role.title} onChange={(v) => setVolunteering(index, { title: v })} />
                 <Field label="Organisation" value={role.employer} onChange={(v) => setVolunteering(index, { employer: v })} />
+                <Field label="Location" value={role.location ?? ''} onChange={(v) => setVolunteering(index, { location: v })} />
                 <Field label="Dates" value={role.dates ?? ''} onChange={(v) => setVolunteering(index, { dates: v })} />
               </div>
               <div className="space-y-1.5">
                 <Label>What you did</Label>
                 <Textarea
                   value={role.details ?? ''}
-                  placeholder="One thing per line"
+                  placeholder="One achievement per line, starting with an action word and ending with the result"
                   onChange={(e) => setVolunteering(index, { details: e.target.value })}
                   className="min-h-[90px]"
                 />
+                <BulletTip />
               </div>
             </div>
           ))}
@@ -763,11 +785,28 @@ export function CvPage() {
             Check it carefully before you send it. Change anything above and click Update my CV. Save a CV for each kind
             of job you apply for, and it's filed in a folder for that role in My CVs.
           </p>
+          {/* UK length standard: 1 page for entry level, up to 2 for experienced candidates */}
+          {pageCount !== null && (
+            <p
+              className={cn(
+                'rounded-md border px-3 py-2 text-sm',
+                pageCount <= pageLimit
+                  ? 'border-border bg-card text-muted-foreground'
+                  : 'border-primary/50 bg-primary/10 text-foreground',
+              )}
+            >
+              {pageCount <= pageLimit
+                ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}: the right length for ${isEntryLevel ? 'an entry-level' : 'an experienced'} UK CV.`
+                : pageCount > 2
+                  ? `Your CV runs onto page ${pageCount}. UK CVs should be 2 pages at most: shorten older jobs or remove bullet points until it fits.`
+                  : 'Your CV is 2 pages. For entry-level and graduate roles UK employers expect 1 page: keep your most relevant points and trim the rest.'}
+            </p>
+          )}
           <iframe
             title="CV preview"
-            srcDoc={cvHtml}
+            srcDoc={previewHtml}
             sandbox=""
-            className="h-[1000px] w-full max-w-[820px] rounded-lg border border-border bg-white shadow-sm"
+            className="h-[1150px] w-full max-w-[840px] rounded-lg border border-border bg-white shadow-sm"
           />
         </section>
       )}
@@ -837,6 +876,16 @@ function RemoveButtonInline({ onClick }: { onClick: () => void }) {
     >
       <Cross2Icon className="h-4 w-4" />
     </button>
+  );
+}
+
+/** How to write CV bullet points the UK way: achievements and results, in UK spelling. */
+function BulletTip() {
+  return (
+    <p className="text-xs text-muted-foreground">
+      Focus on what you achieved and the result, with numbers where you can (how many people, how often, how much).
+      Your CV uses UK spelling automatically (organised, analysed, maximised).
+    </p>
   );
 }
 
