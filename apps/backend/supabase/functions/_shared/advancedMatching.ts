@@ -4,6 +4,7 @@ import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
 import { ILogger } from './logger.ts';
+import { checkJobLocation } from './locationFilter.ts';
 import { buildOpenAiClient, logAiUsage, OPENROUTER_ROUTING } from './openAI.ts';
 import { checkUserSubscription } from './subscription.ts';
 
@@ -45,6 +46,13 @@ export async function applyAdvancedMatchingFilters({
   if (!advancedMatching) {
     logger.info(`advanced matching config not found for user ${job.user_id}`);
     return { newStatus: 'new' };
+  }
+
+  // location filter (no AI): outside the UK or too far from the user's town or postcode
+  const locationCheck = await checkJobLocation({ location: job.location, jobType: job.jobType, config: advancedMatching });
+  if (locationCheck.excluded) {
+    logger.info(`job excluded due to location: ${job.location}`);
+    return { newStatus: 'excluded_by_advanced_matching', excludeReason: locationCheck.reason };
   }
 
   // exclude jobs from specific companies if it fully matches the entire company name

@@ -194,6 +194,10 @@ export type AdvancedMatchingConfig = {
   user_id: string;
   blacklisted_companies: string[];
   chatgpt_prompt: string;
+  // location filter (no AI): hide jobs outside the UK, and/or further than this many miles from a town or postcode
+  uk_only?: boolean;
+  location_center?: string;
+  location_radius_miles?: number | null;
   ai_api_cost: number;
   ai_api_input_tokens_used: number;
   ai_api_output_tokens_used: number;

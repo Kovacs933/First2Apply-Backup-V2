@@ -24,8 +24,10 @@ This folder is the Foundation project. Open **this folder** in Claude next time.
 
 ## Version 1.0.11 (25 Oct 2026)
 
-Template CVs only state facts the user entered: no "motivated and reliable" filler, and "working since 2021" instead
-of a years-of-experience count that could overstate it.
+Location filter on the AI Filters page (no AI, free): only UK jobs, and only within a chosen distance of a town or
+postcode. Template CVs only state facts the user entered: no "motivated and reliable" filler, and "working since
+2021" instead of a years-of-experience count that could overstate it. Needs **Update Foundation online** (new
+database columns + functions).
 
 ## Version 1.0.10 (25 Oct 2026)
 

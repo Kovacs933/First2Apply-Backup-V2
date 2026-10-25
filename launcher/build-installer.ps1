@@ -49,5 +49,10 @@ Copy-Item $setup $release -Force
 # RELEASES + .nupkg are what an update feed needs if you host updates later
 Copy-Item (Join-Path $probe 'out\make\squirrel.windows\x64\*.nupkg'), (Join-Path $probe 'out\make\squirrel.windows\x64\RELEASES') $release -Force
 
+# the Desktop "Upload this" folder is what gets attached to the GitHub release, so keep it in step
+$upload = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Upload this'
+New-Item -ItemType Directory -Force $upload | Out-Null
+Copy-Item (Join-Path $release 'FoundationSetup.exe') $upload -Force
+
 Step 'Done'
 Get-Item (Join-Path $release 'FoundationSetup.exe') | Select-Object FullName, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } }

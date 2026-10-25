@@ -428,7 +428,8 @@ export async function getAdvancedMatchingConfig(): Promise<AdvancedMatchingConfi
  * Update the advanced matching configuration for the current user.
  */
 export async function updateAdvancedMatchingConfig(
-  config: Pick<AdvancedMatchingConfig, 'chatgpt_prompt' | 'blacklisted_companies'>,
+  config: Pick<AdvancedMatchingConfig, 'chatgpt_prompt' | 'blacklisted_companies'> &
+    Partial<Pick<AdvancedMatchingConfig, 'uk_only' | 'location_center' | 'location_radius_miles'>>,
 ) {
   return await _mainProcessApiCall<AdvancedMatchingConfig>('update-advanced-matching-config', {
     config,

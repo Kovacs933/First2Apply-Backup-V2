@@ -701,7 +701,8 @@ export class F2aSupabaseApi {
     config: Pick<
       AdvancedMatchingConfig,
       "chatgpt_prompt" | "blacklisted_companies"
-    >
+    > &
+      Partial<Pick<AdvancedMatchingConfig, "uk_only" | "location_center" | "location_radius_miles">>
   ) {
     const [updatedConfig] = await this._supabaseApiCall(
       async () =>

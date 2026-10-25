@@ -31,10 +31,13 @@ export function FiltersPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showAllBlacklistedCompanies, setShowAllBlacklistedCompanies] = useState(false);
   const [deletedJobs, setDeletedJobs] = useState<Job[]>([]);
+  // location filter (no AI): UK only, and how far from a town or postcode
+  const [ukOnly, setUkOnly] = useState(false);
+  const [locationCenter, setLocationCenter] = useState('');
+  const [radiusMiles, setRadiusMiles] = useState<number | null>(null);
 
   /**
-   * Load the advanced matching filters from the user's profile, and the jobs they deleted
-   * (used to suggest rules).
+   * Load the AI filters from the user's profile, and the jobs they deleted (used to suggest rules).
    */
   useEffect(() => {
     const asyncLoad = async () => {
@@ -43,9 +46,12 @@ export function FiltersPage() {
         if (config) {
           setUserAiInput(config.chatgpt_prompt);
           setBlacklistedCompanies(config.blacklisted_companies);
+          setUkOnly(!!config.uk_only);
+          setLocationCenter(config.location_center ?? '');
+          setRadiusMiles(config.location_radius_miles ?? null);
         }
       } catch (error) {
-        handleError({ error, title: 'Failed to load advanced matching filters' });
+        handleError({ error, title: 'Failed to load your AI filters' });
       } finally {
         setIsLoading(false);
       }
@@ -74,9 +80,16 @@ export function FiltersPage() {
    */
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const lastSaved = useRef<string | null>(null);
+  const configToSave = {
+    chatgpt_prompt: userAiInput,
+    blacklisted_companies: blacklistedCompanies,
+    uk_only: ukOnly,
+    location_center: locationCenter.trim(),
+    location_radius_miles: radiusMiles,
+  };
   useEffect(() => {
     if (isLoading) return;
-    const snapshot = JSON.stringify({ userAiInput, blacklistedCompanies });
+    const snapshot = JSON.stringify(configToSave);
     // the first run after loading is what's already saved
     if (lastSaved.current === null || lastSaved.current === snapshot) {
       lastSaved.current = snapshot;
@@ -86,31 +99,25 @@ export function FiltersPage() {
     setSaveStatus('saving');
     const timer = setTimeout(async () => {
       try {
-        // advanced matching is available to everyone in Foundation, no plan check
-        await updateAdvancedMatchingConfig({
-          chatgpt_prompt: userAiInput,
-          blacklisted_companies: blacklistedCompanies,
-        });
+        // AI filters are available to everyone in Foundation, no plan check
+        await updateAdvancedMatchingConfig(configToSave);
         lastSaved.current = snapshot;
         setSaveStatus('saved');
       } catch (error) {
         setSaveStatus('idle');
-        handleError({ error, title: 'Failed to save advanced matching filters' });
+        handleError({ error, title: 'Failed to save your AI filters' });
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [isLoading, userAiInput, blacklistedCompanies]);
+  }, [isLoading, userAiInput, blacklistedCompanies, ukOnly, locationCenter, radiusMiles]);
 
   // save anything still waiting when the user leaves the page
-  const latest = useRef({ userAiInput, blacklistedCompanies });
-  latest.current = { userAiInput, blacklistedCompanies };
+  const latest = useRef(configToSave);
+  latest.current = configToSave;
   useEffect(
     () => () => {
-      const { userAiInput, blacklistedCompanies } = latest.current;
-      if (lastSaved.current === null || lastSaved.current === JSON.stringify({ userAiInput, blacklistedCompanies })) return;
-      updateAdvancedMatchingConfig({ chatgpt_prompt: userAiInput, blacklisted_companies: blacklistedCompanies }).catch(
-        (error) => console.error(error),
-      );
+      if (lastSaved.current === null || lastSaved.current === JSON.stringify(latest.current)) return;
+      updateAdvancedMatchingConfig(latest.current).catch((error) => console.error(error));
     },
     [],
   );
@@ -182,10 +189,63 @@ export function FiltersPage() {
 
       </section>
 
+      {/* location filter: checked without AI, so it's instant, free and always applied */}
+      <section>
+        <h2 className="mb-1 text-lg font-medium">2. Where do you want to work?</h2>
+        <p className="mb-3 text-base text-muted-foreground">
+          Foundation checks each job's location itself (no AI needed) and moves jobs outside your area to Filtered out,
+          with the reason. Remote UK jobs are always kept.
+        </p>
+        <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+          <label className="flex cursor-pointer items-center gap-3 text-base">
+            <input
+              type="checkbox"
+              checked={ukOnly}
+              onChange={(e) => setUkOnly(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            Only show jobs in the UK
+          </label>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Within</p>
+              <select
+                value={radiusMiles ?? ''}
+                onChange={(e) => setRadiusMiles(e.target.value ? Number(e.target.value) : null)}
+                className="h-10 rounded-md border border-border bg-background px-3 text-base"
+              >
+                <option value="">Any distance</option>
+                {[5, 10, 15, 20, 30, 50, 75].map((miles) => (
+                  <option key={miles} value={miles}>
+                    {miles} miles
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[200px] flex-1 space-y-1.5">
+              <p className="text-sm font-medium">of your town or postcode</p>
+              <Input
+                value={locationCenter}
+                placeholder="e.g. Leeds or LS6 2NU"
+                onChange={(e) => setLocationCenter(e.target.value)}
+                maxLength={60}
+                className="bg-background text-base"
+              />
+            </div>
+          </div>
+          {radiusMiles && !locationCenter.trim() && (
+            <p className="text-sm text-destructive/90">Enter your town or postcode to use the distance limit.</p>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Applies to new jobs from now on. Distances are as the crow flies.
+          </p>
+        </div>
+      </section>
+
       {/* HERE STARTS THE BLACKLISTING */}
 
       <section>
-        <h2 className="mb-1 text-lg font-medium">2. Companies to hide</h2>
+        <h2 className="mb-1 text-lg font-medium">3. Companies to hide</h2>
         <p className="mb-3 text-base text-muted-foreground">
           Type a company's name exactly as it appears on job adverts, then click Add company. You won't see their jobs
           again.
