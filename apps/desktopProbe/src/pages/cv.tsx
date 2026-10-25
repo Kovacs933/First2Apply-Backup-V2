@@ -8,11 +8,14 @@ import {
   EmployerSkill,
   buildTemplateCv,
   candidateHasSkill,
+  cvDataStrength,
   findEmployerSkills,
+  isChosenJob,
   jobsForRole,
   parseCvText,
   renderCvHtml,
 } from '@/lib/cvBuilder';
+import { SavedCv, cvFolders, loadCvLibrary, newCvId, saveCvLibrary } from '@/lib/cvLibraryStore';
 import { CvBuilderState, loadCvBuilderState, saveCvBuilderState } from '@/lib/cvProfileStore';
 import {
   CvSourceJob,
@@ -49,6 +52,21 @@ export function CvPage() {
   const [cv, setCv] = useState<GeneratedCv | null>(null);
   const [isWriting, setIsWriting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // a CV opened from My CVs shows with the details it was saved with
+  const [openedProfile, setOpenedProfile] = useState<CvProfile | null>(null);
+  const previewRef = useRef<HTMLElement>(null);
+
+  // My CVs: saved CVs filed in folders, kept on this computer
+  const [library, setLibrary] = useState<SavedCv[]>(loadCvLibrary);
+  const [saveFolder, setSaveFolder] = useState('');
+  const updateLibrary = (cvs: SavedCv[]) => {
+    if (!saveCvLibrary(cvs)) {
+      toast({ title: "Couldn't save", description: 'Foundation ran out of space for saved CVs. Delete some old ones.' });
+      return false;
+    }
+    setLibrary(cvs);
+    return true;
+  };
 
   useEffect(() => saveCvBuilderState(state), [state]);
 
@@ -58,9 +76,16 @@ export function CvPage() {
   const importText = (text: string, source: string, pageTitle?: string, extra: Partial<CvProfile> = {}) => {
     const found = { ...parseCvText(text, pageTitle), ...extra };
     const filled: Partial<CvProfile> = {};
-    (['fullName', 'email', 'phone', 'linkedinUrl'] as const).forEach((key) => {
+    (['fullName', 'email', 'phone', 'location', 'linkedinUrl'] as const).forEach((key) => {
       if (found[key] && !profile[key]?.trim()) filled[key] = found[key];
     });
+    // jobs and qualifications only fill in when the candidate hasn't typed any yet
+    if (found.experience?.length && !profile.experience.some((e) => e.title.trim() || e.employer.trim())) {
+      filled.experience = found.experience;
+    }
+    if (found.education?.length && !profile.education.some((e) => e.qualification.trim() || e.place.trim())) {
+      filled.education = found.education;
+    }
     if (found.skills?.length && profile.skills.length === 0) {
       filled.skills = found.skills;
       setSkillsText(found.skills.join(', '));
@@ -106,7 +131,7 @@ export function CvPage() {
       const page = await overlayBrowserPageText();
       await linkedinBrowserRef.current?.finish();
       if (!/linkedin\.com\/in\//i.test(page.url)) {
-        throw new Error('Open your own LinkedIn profile page first (linkedin.com/in/...), then click Import this profile.');
+        throw new Error('Open your own LinkedIn profile page first (linkedin.com/in/...), then click Add LinkedIn profile.');
       }
       const profileUrl = page.url.split('?')[0];
       setLinkedinInput(profileUrl);
@@ -125,6 +150,8 @@ export function CvPage() {
 
   const roleJobs = useMemo(() => jobsForRole(foundJobs, targetRole), [foundJobs, targetRole]);
   const employerSkills = useMemo<EmployerSkill[]>(() => findEmployerSkills(roleJobs), [roleJobs]);
+  const savedRoleJobs = roleJobs.filter(isChosenJob).length;
+  const strength = useMemo(() => cvDataStrength(roleJobs), [roleJobs]);
 
   const setSkills = (text: string) => {
     setSkillsText(text);
@@ -136,9 +163,17 @@ export function CvPage() {
 
   const onCreate = async () => {
     setIsWriting(true);
+    setOpenedProfile(null);
     try {
       if (mode === 'template') {
         setCv(buildTemplateCv({ profile, targetRole, employerSkills }));
+        if (!profile.experience.some((e) => e.title.trim() || e.employer.trim())) {
+          toast({
+            title: 'Add your work experience',
+            description:
+              'Employers look at your experience first. Add your jobs (paid, voluntary or placements) in step 2 and create it again.',
+          });
+        }
       } else {
         const written = await generateCv({
           targetRole,
@@ -146,7 +181,8 @@ export function CvPage() {
           existingCv,
           employerSkills,
           jobsAnalysed: roleJobs.length,
-          sampleJobs: roleJobs.slice(0, 4).map((job) => ({
+          // saved jobs come first, so the AI writes for the jobs the candidate actually wants
+          sampleJobs: roleJobs.slice(0, 6).map((job) => ({
             title: job.title,
             companyName: job.companyName,
             description: job.description ?? '',
@@ -161,18 +197,49 @@ export function CvPage() {
     }
   };
 
-  const cvHtml = cv ? renderCvHtml({ cv, profile }) : '';
-  const onDownload = async () => {
+  const cvHtml = cv ? renderCvHtml({ cv, profile: openedProfile ?? profile }) : '';
+  const downloadPdf = async (html: string, owner: CvProfile, role: string) => {
     setIsSaving(true);
     try {
-      const fileName = `${profile.fullName.trim() || 'My'} CV - ${targetRole.trim()}.pdf`.replace(/[\\/:*?"<>|]/g, '');
-      const { saved } = await saveCvPdf({ html: cvHtml, fileName });
+      const fileName = `${owner.fullName.trim() || 'My'} CV - ${role.trim()}.pdf`.replace(/[\\/:*?"<>|]/g, '');
+      const { saved } = await saveCvPdf({ html, fileName });
       if (saved) toast({ title: 'CV saved', description: 'Your CV has been saved as a PDF.' });
     } catch (error) {
       handleError({ error, title: "Couldn't save the PDF" });
     } finally {
       setIsSaving(false);
     }
+  };
+  const onDownload = () => downloadPdf(cvHtml, openedProfile ?? profile, targetRole);
+
+  const onSaveToLibrary = () => {
+    if (!cv) return;
+    const folder = saveFolder.trim() || targetRole.trim() || 'Other';
+    const sameFolder = library.filter((c) => c.folder === folder).length;
+    const saved: SavedCv = {
+      id: newCvId(),
+      name: `${targetRole.trim() || 'CV'}${sameFolder ? ` (${sameFolder + 1})` : ''}`,
+      folder,
+      targetRole: targetRole.trim(),
+      createdAt: new Date().toISOString(),
+      cv,
+      profile: openedProfile ?? profile,
+    };
+    if (updateLibrary([saved, ...library])) {
+      toast({ title: 'Saved to My CVs', description: `"${saved.name}" is in the ${folder} folder at the top of this page.` });
+    }
+  };
+  const onOpenSaved = (saved: SavedCv) => {
+    setCv(saved.cv);
+    setOpenedProfile(saved.profile);
+    setSaveFolder(saved.folder);
+    update({ targetRole: saved.targetRole });
+    setTimeout(() => previewRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  };
+  const changeSaved = (id: string, changes: Partial<SavedCv>) =>
+    updateLibrary(library.map((c) => (c.id === id ? { ...c, ...changes } : c)));
+  const onDeleteSaved = (saved: SavedCv) => {
+    if (window.confirm(`Delete "${saved.name}" from My CVs?`)) updateLibrary(library.filter((c) => c.id !== saved.id));
   };
 
   return (
@@ -185,6 +252,61 @@ export function CvPage() {
           saved on this computer.
         </p>
       </div>
+
+      {/* My CVs: one folder per role, so a CV can be picked for each application */}
+      {library.length > 0 && (
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-lg font-medium">My CVs</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The CVs you've saved, in a folder for each kind of job. They're kept on this computer.
+          </p>
+          <div className="mt-4 space-y-2">
+            {cvFolders(library).map(({ folder, cvs }) => (
+              <details key={folder} open className="rounded-md border border-border bg-background">
+                <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium">
+                  {folder} <span className="font-normal text-muted-foreground">({cvs.length})</span>
+                </summary>
+                <ul className="divide-y divide-border border-t border-border">
+                  {cvs.map((saved) => (
+                    <li key={saved.id} className="flex flex-wrap items-center gap-2 px-4 py-2">
+                      <Input
+                        value={saved.name}
+                        aria-label="CV name"
+                        onChange={(e) => changeSaved(saved.id, { name: e.target.value })}
+                        className="h-8 min-w-[140px] flex-1 bg-card"
+                      />
+                      <Input
+                        defaultValue={saved.folder}
+                        aria-label="Folder"
+                        title="Type a folder name to move this CV"
+                        onBlur={(e) => e.target.value.trim() !== saved.folder && changeSaved(saved.id, { folder: e.target.value.trim() || 'Other' })}
+                        className="h-8 w-36 bg-card"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(saved.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={() => onOpenSaved(saved)}>
+                        Open
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() =>
+                          downloadPdf(renderCvHtml({ cv: saved.cv, profile: saved.profile }), saved.profile, saved.targetRole)
+                        }
+                      >
+                        PDF
+                      </Button>
+                      <RemoveButtonInline onClick={() => onDeleteSaved(saved)} />
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* quick start: bring in what the candidate already has */}
       <section className="rounded-lg border border-border bg-card p-5">
@@ -217,8 +339,8 @@ export function CvPage() {
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          LinkedIn opens inside Foundation: sign in if asked, then click Import this profile. CVs can be PDF, Word
-          (.docx) or text.
+          LinkedIn opens inside Foundation: sign in if asked, go to your profile, then click Add LinkedIn profile at
+          the top right. CVs can be PDF, Word (.docx) or text.
         </p>
       </section>
 
@@ -227,7 +349,7 @@ export function CvPage() {
         onClose={() => {}}
         label="Your LinkedIn profile"
         customActionButton={{
-          text: 'Import this profile',
+          text: 'Add LinkedIn profile',
           onClick: onImportLinkedin,
           tooltip: 'Bring this profile into the CV Builder',
         }}
@@ -248,18 +370,41 @@ export function CvPage() {
               <p className="text-sm text-muted-foreground">Looking through your jobs ...</p>
             ) : roleJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No found jobs match "{targetRole.trim()}" yet. Add a search for this role on the Searches page, and once
-                Foundation finds some jobs it can show what employers ask for. You can still create your CV now.
+                No found jobs match "{targetRole.trim()}" yet. Add a search for this role on the Searches page, then use
+                Foundation for about 30 minutes, saving the jobs you'd apply for. It uses those adverts to fit your CV
+                to the role. You can still create your CV now.
               </p>
             ) : (
               <>
                 <h3 className="text-base font-medium">What employers want</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  From {roleJobs.length} {roleJobs.length === 1 ? 'job' : 'jobs'} Foundation found for this role. Only
-                  add skills you really have.
+                  Foundation compares your details with {roleJobs.length}{' '}
+                  {roleJobs.length === 1 ? 'advert' : 'adverts'} for this role
+                  {savedRoleJobs > 0 && `, including the ${savedRoleJobs} you saved or applied to`}, and gives the most
+                  weight to the jobs you saved and to each advert's person specification, so your CV fits the jobs you
+                  actually want. Only add skills you really have.
                 </p>
+
+                {/* how much it has to go on: about 30 minutes of searching and saving jobs gets it to "strong" */}
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">
+                      {strength.level === 'strong'
+                        ? 'Strong match data'
+                        : strength.level === 'building'
+                          ? 'Building up match data'
+                          : 'Just getting started'}
+                    </span>
+                    <span className="text-muted-foreground">{strength.percent}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${strength.percent}%` }} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">{strength.tip}</p>
+                </div>
+
                 <ul className="mt-3 divide-y divide-border">
-                  {employerSkills.map(({ skill, jobCount }) => {
+                  {employerSkills.map(({ skill, jobCount, savedCount, essentialCount }) => {
                     const hasIt = candidateHasSkill(profile, skill);
                     return (
                       <li key={skill} className="flex items-center justify-between gap-4 py-2">
@@ -267,6 +412,8 @@ export function CvPage() {
                           <p className="text-sm font-medium">{skill}</p>
                           <p className="text-sm text-muted-foreground">
                             In {jobCount} of {roleJobs.length} adverts
+                            {savedCount > 0 && ` · ${savedCount} you saved`}
+                            {essentialCount > 0 && ` · in ${essentialCount} person ${essentialCount === 1 ? 'spec' : 'specs'}`}
                           </p>
                         </div>
                         {hasIt ? (
@@ -410,7 +557,7 @@ export function CvPage() {
           <ModeOption
             selected={mode === 'template'}
             title="Use a template (no AI)"
-            description="Your own words in a clean CV layout, with the skills employers ask for most put first. Nothing leaves your computer except the PDF you save."
+            description="Your own words in a clean CV layout, tailored to the role: a personal profile built around what employers ask for, only the relevant skills, and your most relevant experience first. Nothing leaves your computer except the PDF you save."
             onSelect={() => update({ mode: 'template' })}
           />
         </div>
@@ -442,15 +589,28 @@ export function CvPage() {
 
       {/* 4. preview + download */}
       {cv && (
-        <section className="space-y-3">
+        <section ref={previewRef} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-medium">4. Your CV</h2>
-            <Button size="lg" className="px-8 text-base" disabled={isSaving} onClick={onDownload}>
-              {isSaving ? 'Saving ...' : 'Download PDF'}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={saveFolder}
+                placeholder={`Folder: ${targetRole.trim() || 'Other'}`}
+                aria-label="Folder to save in"
+                onChange={(e) => setSaveFolder(e.target.value)}
+                className="h-10 w-48 bg-card"
+              />
+              <Button size="lg" variant="outline" className="text-base" onClick={onSaveToLibrary}>
+                Save to My CVs
+              </Button>
+              <Button size="lg" className="px-8 text-base" disabled={isSaving} onClick={onDownload}>
+                {isSaving ? 'Saving ...' : 'Download PDF'}
+              </Button>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Check it carefully before you send it. Change anything above and click Update my CV.
+            Check it carefully before you send it. Change anything above and click Update my CV. Save a CV for each kind
+            of job you apply for, and it's filed in a folder for that role in My CVs.
           </p>
           <iframe
             title="CV preview"
@@ -501,6 +661,20 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
       title="Remove"
       onClick={onClick}
       className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <Cross2Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function RemoveButtonInline({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Delete"
+      title="Delete"
+      onClick={onClick}
+      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       <Cross2Icon className="h-4 w-4" />
     </button>

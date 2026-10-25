@@ -1,7 +1,10 @@
 import { CvProfile, GeneratedCv } from '@first2apply/core';
 
 /** The parts of a found job the CV builder looks at. */
-type SourceJob = { title: string; description?: string | null; tags?: string[] | null };
+type SourceJob = { title: string; description?: string | null; tags?: string[] | null; status?: string };
+
+/** Jobs the candidate saved ("archived" is the Saved tab) or applied to: the roles they really want. */
+export const isChosenJob = (job: SourceJob) => job.status === 'archived' || job.status === 'applied';
 
 /**
  * Skills and requirements UK employers commonly ask for. Each is counted in the job adverts Foundation found,
@@ -118,30 +121,92 @@ const roleWords = (role: string) =>
     .split(/[^a-z0-9+#]+/)
     .filter((w) => w.length > 1 && !STOPWORDS.has(w));
 
-/** The found jobs that match the role the candidate wants (all its words in the title, else any of them). */
+/**
+ * The found jobs that match the role the candidate wants (all its words in the title, else any of them),
+ * with the jobs they saved or applied to first.
+ */
 export function jobsForRole<T extends SourceJob>(jobs: T[], targetRole: string): T[] {
   const words = roleWords(targetRole);
   if (words.length === 0) return [];
   const title = (job: T) => job.title.toLowerCase();
-  const all = jobs.filter((job) => words.every((w) => title(job).includes(w)));
-  if (all.length > 0) return all;
-  return jobs.filter((job) => words.some((w) => title(job).includes(w)));
+  let matching = jobs.filter((job) => words.every((w) => title(job).includes(w)));
+  if (matching.length === 0) matching = jobs.filter((job) => words.some((w) => title(job).includes(w)));
+  return [...matching.filter(isChosenJob), ...matching.filter((job) => !isChosenJob(job))];
 }
 
-export type EmployerSkill = { skill: string; jobCount: number };
+export type EmployerSkill = {
+  skill: string;
+  // adverts that mention it
+  jobCount: number;
+  // of those, the ones the candidate saved or applied to
+  savedCount: number;
+  // adverts that list it in the person specification / essential requirements
+  essentialCount: number;
+};
 
-/** The skills mentioned most across the given job adverts, with how many adverts mention each. */
+/**
+ * The person specification part of an advert: everything after a heading like "Person specification",
+ * "Essential criteria", "Requirements" or "About you". Empty when the advert has none.
+ */
+export function personSpecification(description: string): string {
+  const match = description.match(
+    /(person specification|essential (criteria|skills|requirements|experience)|(key )?requirements|what you('ll)? need|what we('re)? looking for|about you|you will have|the ideal candidate)/i,
+  );
+  return match?.index !== undefined ? description.slice(match.index) : '';
+}
+
+/**
+ * The skills that matter most across the given job adverts. Each advert counts once, a job the candidate saved
+ * or applied to counts three times (those are the roles they actually want), and a skill in an advert's person
+ * specification counts extra, since that's what applications are shortlisted against.
+ */
 export function findEmployerSkills(jobs: SourceJob[], max = 15): EmployerSkill[] {
-  const counts = SKILLS.map(({ skill, pattern }) => ({
-    skill,
-    jobCount: jobs.filter((job) =>
-      pattern.test([job.title, job.description ?? '', ...(job.tags ?? [])].join('\n')),
-    ).length,
-  }));
+  const adverts = jobs.map((job) => {
+    // not the title: "Job Coach" would otherwise count as asking for coaching in every advert
+    const text = [job.description ?? '', ...(job.tags ?? [])].join('\n');
+    return { text, spec: personSpecification(job.description ?? ''), chosen: isChosenJob(job) };
+  });
+  const counts = SKILLS.map(({ skill, pattern }) => {
+    const mentioning = adverts.filter((a) => pattern.test(a.text));
+    const savedCount = mentioning.filter((a) => a.chosen).length;
+    const essentialCount = mentioning.filter((a) => a.spec && pattern.test(a.spec)).length;
+    return {
+      skill,
+      jobCount: mentioning.length,
+      savedCount,
+      essentialCount,
+      weight: mentioning.length + savedCount * 2 + essentialCount,
+    };
+  });
   return counts
     .filter((c) => c.jobCount > 0)
-    .sort((a, b) => b.jobCount - a.jobCount)
-    .slice(0, max);
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, max)
+    .map(({ weight, ...skill }) => skill);
+}
+
+export type CvDataStrength = { level: 'starting' | 'building' | 'strong'; percent: number; tip: string };
+
+/**
+ * How much Foundation has to go on for this role. Around 30 minutes of searching and saving jobs gives it
+ * enough: 20+ adverts for the role, 5+ of them saved, and some with a person specification.
+ */
+export function cvDataStrength(roleJobs: SourceJob[]): CvDataStrength {
+  const saved = roleJobs.filter(isChosenJob).length;
+  const withSpec = roleJobs.filter((job) => personSpecification(job.description ?? '')).length;
+  const percent = Math.round(
+    (Math.min(roleJobs.length, 20) / 20) * 50 + (Math.min(saved, 5) / 5) * 35 + (Math.min(withSpec, 5) / 5) * 15,
+  );
+  const level = percent >= 80 ? 'strong' : percent >= 40 ? 'building' : 'starting';
+  const tip =
+    roleJobs.length < 20
+      ? `Foundation has ${roleJobs.length} ${roleJobs.length === 1 ? 'advert' : 'adverts'} for this role so far. Keep your searches running and check back: around 20 gives a reliable picture.`
+      : saved < 5
+        ? `Save the jobs you'd really apply for (${saved} saved so far). Around 5 lets Foundation fit your CV to the jobs you actually want.`
+        : withSpec < 5
+          ? 'Few of these adverts include a person specification yet. Open and save some full adverts so Foundation can match the essential criteria.'
+          : 'Foundation has plenty to go on for this role.';
+  return { level, percent, tip };
 }
 
 const sameSkill = (a: string, b: string) => {
@@ -154,8 +219,44 @@ const sameSkill = (a: string, b: string) => {
 export const candidateHasSkill = (profile: CvProfile, skill: string) =>
   profile.skills.some((s) => s.trim() && sameSkill(s, skill));
 
+/** Checks and licences: shown in their own section and sentence rather than as skills. */
+const CREDENTIALS: Record<string, string> = {
+  'DBS check': 'a DBS check',
+  'Driving licence': 'a driving licence',
+  'Right to work in the UK': 'the right to work in the UK',
+  'First aid': 'a first aid certificate',
+  'CSCS card': 'a CSCS card',
+  'Forklift licence': 'a forklift licence',
+  'HGV / Class 1 or 2': 'an HGV licence',
+  'NMC registration': 'NMC registration',
+  'HCPC registration': 'HCPC registration',
+  'Care Certificate': 'the Care Certificate',
+  'QTS (teaching)': 'QTS',
+  'ACCA / CIMA / ACA': 'an accountancy qualification',
+  'Electrical (18th Edition)': '18th Edition wiring regulations',
+};
+
+/** Everyday skills that read naturally in lower case mid-sentence ("strengths in teamwork and ..."). */
+const COMMON_SKILLS = new Set(SKILLS.slice(0, 31).map((s) => s.skill).concat(['Patient care', 'Personal care']));
+const inSentence = (skill: string) => (COMMON_SKILLS.has(skill) ? skill.toLowerCase() : skill);
+
+/** The known skill (from SKILLS) a candidate's own wording refers to, if any. */
+const knownSkill = (own: string) => SKILLS.find((s) => sameSkill(own, s.skill) || s.pattern.test(own));
+
+const aOrAn = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
+
+/** Years since the earliest year in the candidate's job dates (0 if none are given). */
+function yearsOfExperience(profile: CvProfile): number {
+  const years = profile.experience
+    .flatMap((e): string[] => (e.dates ?? '').match(/\b(19|20)\d{2}\b/g) ?? [])
+    .map(Number);
+  return years.length ? new Date().getFullYear() - Math.min(...years) : 0;
+}
+
 /**
- * Lay out a CV without AI: the candidate's own words, with the skills employers ask for most put first.
+ * Lay out a CV without AI, tailored to the role: a personal profile built around what the role's employers
+ * ask for, only the skills those adverts mention (plus the candidate's own specialist ones), checks and
+ * licences pulled out, and each job's most relevant points first.
  */
 export function buildTemplateCv({
   profile,
@@ -166,42 +267,144 @@ export function buildTemplateCv({
   targetRole: string;
   employerSkills: EmployerSkill[];
 }): GeneratedCv {
-  const ownSkills = profile.skills.map((s) => s.trim()).filter(Boolean);
   const rank = (skill: string) => {
-    const index = employerSkills.findIndex((e) => sameSkill(skill, e.skill));
+    const known = knownSkill(skill)?.skill ?? skill;
+    const index = employerSkills.findIndex((e) => sameSkill(skill, e.skill) || e.skill === known);
     return index === -1 ? Number.MAX_SAFE_INTEGER : index;
   };
-  const skills = [...ownSkills].sort((a, b) => rank(a) - rank(b));
-  const matched = skills.filter((s) => rank(s) !== Number.MAX_SAFE_INTEGER).slice(0, 3);
+  const isCredential = (skill: string) => {
+    const known = knownSkill(skill)?.skill;
+    return !!known && known in CREDENTIALS;
+  };
 
-  // e.g. "Reporting Assistant at Leeds City Council, looking for a Data Analyst role. Skilled in SQL, Excel and Python."
-  const latest = profile.experience.find((e) => e.title.trim());
+  const ownSkills = [...new Set(profile.skills.map((s) => s.trim()).filter(Boolean))];
+  const credentials = ownSkills.filter(isCredential).sort((a, b) => rank(a) - rank(b));
+  const skills = ownSkills
+    .filter((s) => !isCredential(s))
+    // once we know what the role's adverts ask for, drop known skills none of them mention (e.g. React for a
+    // Job Coach); skills we can't judge are the candidate's own specialisms, so they stay
+    .filter((s) => employerSkills.length === 0 || rank(s) !== Number.MAX_SAFE_INTEGER || !knownSkill(s))
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, 12);
+  const strengths = skills.filter((s) => rank(s) !== Number.MAX_SAFE_INTEGER).slice(0, 3);
+
   const role = targetRole.trim();
-  const current = latest ? `${latest.title.trim()}${latest.employer.trim() ? ` at ${latest.employer.trim()}` : ''}` : '';
-  const lookingFor = role ? `looking for ${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role} role` : '';
-  const opening = current && lookingFor ? `${current}, ${lookingFor}.` : current ? `${current}.` : lookingFor ? `${lookingFor[0].toUpperCase()}${lookingFor.slice(1)}.` : '';
-  const summary =
-    profile.summary?.trim() ||
-    [opening, matched.length ? `Skilled in ${joinList(matched)}.` : ''].filter(Boolean).join(' ');
+  const jobs = profile.experience.filter((e) => e.title.trim() || e.employer.trim());
+  const latest = jobs.find((e) => e.title.trim());
+  const years = yearsOfExperience(profile);
+  const latestEducation = profile.education.find((e) => e.qualification.trim());
+
+  // e.g. "Assistant Job Coach at Lighthouse Futures Trust with 3 years' experience. Particular strengths in
+  // training and mentoring, safeguarding and communication. Has a DBS check and a driving licence. Now looking
+  // to bring this experience to a Job Coach role in Leeds."
+  const opening = latest
+    ? `${latest.title.trim()}${latest.employer.trim() ? ` at ${latest.employer.trim()}` : ''}${years >= 2 ? ` with ${years} years' experience` : ''}.`
+    : latestEducation
+      ? `Motivated candidate with ${aOrAn(latestEducation.qualification.trim())} ${latestEducation.qualification.trim()}${latestEducation.place.trim() ? ` from ${latestEducation.place.trim()}` : ''}.`
+      : 'Motivated and reliable candidate, keen to learn and quick to pick up new responsibilities.';
+  const strengthsLine = strengths.length ? `Particular strengths in ${joinList(strengths.map(inSentence))}.` : '';
+  const credentialsLine = credentials.length
+    ? `Has ${joinList(credentials.map((c) => CREDENTIALS[knownSkill(c)?.skill ?? ''] ?? c))}.`
+    : '';
+  const where = profile.location?.trim() ? ` in ${profile.location.trim()}` : '';
+  const goal = role
+    ? latest
+      ? `Now looking to bring this experience to ${aOrAn(role)} ${role} role${where}.`
+      : `Looking for a first ${role} role${where}.`
+    : '';
+  const summary = profile.summary?.trim() || [opening, strengthsLine, credentialsLine, goal].filter(Boolean).join(' ');
+
+  // within each job, the points that show what employers ask for go first (older jobs keep their best three)
+  const relevance = (bullet: string) =>
+    employerSkills.reduce((score, e, i) => {
+      const pattern = SKILLS.find((s) => s.skill === e.skill)?.pattern;
+      return pattern?.test(bullet) || bullet.toLowerCase().includes(e.skill.toLowerCase())
+        ? score + (employerSkills.length - i)
+        : score;
+    }, 0);
 
   return {
     summary,
     skills,
-    experience: profile.experience
-      .filter((e) => e.title.trim() || e.employer.trim())
-      .map((e) => ({
+    credentials,
+    experience: jobs.map((e, index) => {
+      const bullets = (e.details ?? '')
+        .split(/\n+/)
+        .map((line) => line.replace(/^[\s•*-]+/, '').trim())
+        .filter(Boolean)
+        .map((bullet, i) => ({ bullet, i, score: relevance(bullet) }))
+        .sort((a, b) => b.score - a.score || a.i - b.i)
+        .map(({ bullet }) => bullet);
+      return {
         title: e.title.trim(),
         employer: e.employer.trim(),
         dates: e.dates?.trim() ?? '',
-        bullets: (e.details ?? '')
-          .split(/\n+/)
-          .map((line) => line.replace(/^[\s•*-]+/, '').trim())
-          .filter(Boolean),
-      })),
+        bullets: index < 2 ? bullets : bullets.slice(0, 3),
+      };
+    }),
     education: profile.education
       .filter((e) => e.qualification.trim() || e.place.trim())
       .map((e) => ({ qualification: e.qualification.trim(), place: e.place.trim(), dates: e.dates?.trim() ?? '' })),
   };
+}
+
+const MONTH = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+// "Sep 2025 - Present · 2 mos", "2019 – 2022", "March 2020 to June 2023"
+const DATE_RANGE = new RegExp(
+  `^(?:${MONTH}\\s+)?(?:19|20)\\d{2}\\s*(?:-|–|—|to)\\s*(?:present|now|current|today|(?:${MONTH}\\s+)?(?:19|20)\\d{2})`,
+  'i',
+);
+const SINGLE_DATE = new RegExp(`^(?:${MONTH}\\s+)?(?:19|20)\\d{2}$`, 'i');
+const isDateLine = (line: string) => line.length <= 60 && DATE_RANGE.test(line);
+const cleanDates = (line: string) => line.split('·')[0].trim();
+const isLocationLine = (line: string) =>
+  line.length <= 60 &&
+  line.split(' ').length <= 8 &&
+  /\b(england|scotland|wales|northern ireland|united kingdom|uk|on-site|hybrid|remote)\b/i.test(line);
+const isNoise = (line: string) =>
+  /^skills:|^(show (all|more)|see more|…\s*see more)|^(full-time|part-time|contract|internship|apprenticeship|self-employed|freelance|permanent|temporary)\b/i.test(
+    line,
+  );
+const PLACE = /\b(university|college|school|academy|institute|sixth form|polytechnic)\b/i;
+
+/** Jobs from a CV or LinkedIn "Experience" section: title and employer sit just above each date line. */
+function parseExperience(block: string[]): CvProfile['experience'] {
+  const dateLines = block.map((line, i) => (isDateLine(line) ? i : -1)).filter((i) => i >= 0);
+  return dateLines.slice(0, 8).map((dateIndex, n) => {
+    const from = n > 0 ? dateLines[n - 1] + 1 : 0;
+    const header = block.slice(Math.max(from, dateIndex - 2), dateIndex).filter((l) => !isNoise(l) && !isLocationLine(l));
+    let [title, employer] = header.length >= 2 ? header.slice(-2) : [header[0] ?? '', ''];
+    if (!employer) {
+      // "Job Coach | Lighthouse Futures Trust" or "Job Coach at Lighthouse Futures Trust"
+      const parts = title.split(/\s+(?:\||at|–|—|-)\s+/);
+      if (parts.length === 2) [title, employer] = parts;
+    }
+    const end = n + 1 < dateLines.length ? dateLines[n + 1] - 2 : block.length;
+    const details = block
+      .slice(dateIndex + 1, Math.max(dateIndex + 1, end))
+      .filter((l) => !isNoise(l) && !isLocationLine(l) && !isDateLine(l));
+    return {
+      title: title.trim(),
+      employer: employer.split('·')[0].trim(),
+      dates: cleanDates(block[dateIndex]),
+      details: details.join('\n'),
+    };
+  });
+}
+
+/** Qualifications from an "Education" section: each school/college/university with the line next to it. */
+function parseEducation(block: string[]): CvProfile['education'] {
+  const isDate = (l?: string) => !!l && (isDateLine(l) || SINGLE_DATE.test(l));
+  const education: CvProfile['education'] = [];
+  block.forEach((line, i) => {
+    if (education.length >= 5 || !PLACE.test(line) || line.length > 80) return;
+    const qualification = [block[i + 1], block[i - 1]].find(
+      (l) => l && !PLACE.test(l) && !isDate(l) && !isNoise(l) && !/^(grade|activities)/i.test(l) && l.length <= 100,
+    );
+    const dates = block.slice(i + 1, i + 4).find(isDate);
+    education.push({ qualification: qualification ?? '', place: line, dates: dates ? cleanDates(dates) : '' });
+  });
+  return education;
 }
 
 /**
@@ -212,7 +415,9 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
   const lines = text
     .split('\n')
     .map((l) => l.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    // LinkedIn repeats each line for screen readers
+    .filter((l, i, all) => l !== all[i - 1]);
 
   const email = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0];
   const phone = text.match(/(?:\+44\s?7\d{3}|\(?07\d{3}\)?)\s?\d{3}\s?\d{3}|(?:\+44\s?|0)(?:\d\s?){9,10}/)?.[0]?.trim();
@@ -248,17 +453,46 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
     ].slice(0, 20);
   }
 
+  // the lines of a section, from its heading up to the next heading
+  const sectionLines = (heading: RegExp) => {
+    const index = lines.findIndex((l) => heading.test(squash(l)) && l.length <= 30);
+    if (index === -1) return [];
+    const block: string[] = [];
+    for (const line of lines.slice(index + 1)) {
+      if (headings.test(squash(line)) && line.length <= 30) break;
+      if (/^(key|core|technical)?skills$/.test(squash(line))) break;
+      block.push(line);
+    }
+    return block;
+  };
+  const experience = parseExperience(
+    sectionLines(/^(work|professional|employment|career)?(experience|employment|employmenthistory|history)$/),
+  ).filter((e) => e.title || e.employer);
+  const education = parseEducation(sectionLines(/^(education|qualifications|educationandqualifications)$/));
+  // e.g. "Leeds, England, United Kingdom" near the top of a LinkedIn profile
+  const location = lines
+    .slice(0, 25)
+    .find((l) => /^[A-Z][A-Za-z .'-]+, (England|Scotland|Wales|Northern Ireland|United Kingdom|UK)\b/.test(l) && l.length <= 60)
+    ?.split(',')[0]
+    .trim();
+
   return {
     ...(fullName && { fullName }),
     ...(email && { email }),
     ...(phone && { phone }),
+    ...(location && { location }),
     ...(linkedinUrl && { linkedinUrl: linkedinUrl.startsWith('http') ? linkedinUrl : `https://${linkedinUrl}` }),
     ...(skills?.length && { skills }),
+    ...(experience.length && { experience }),
+    ...(education.length && { education }),
   };
 }
 
+// a comma before the last "and" when an item has its own "and" ("safeguarding, training and mentoring, and teamwork")
 const joinList = (items: string[]) =>
-  items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  items.length <= 1
+    ? items.join('')
+    : `${items.slice(0, -1).join(', ')}${items.length > 2 && items.some((i) => / and /.test(i)) ? ',' : ''} and ${items[items.length - 1]}`;
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
@@ -318,5 +552,6 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
   ${section('Key skills', cv.skills.length ? `<div class="skills">${cv.skills.map((s) => `<span>${e(s)}</span>`).join('')}</div>` : '')}
   ${section('Experience', experience)}
   ${section('Education', education)}
+  ${section('Checks and licences', cv.credentials?.length ? `<p>${cv.credentials.map(e).join('  ·  ')}</p>` : '')}
 </div></body></html>`;
 }

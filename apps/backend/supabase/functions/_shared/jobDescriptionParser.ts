@@ -109,7 +109,7 @@ const SITE_PROVIDER_QUERY_SELECTORS: Record<SiteProvider, SiteProviderQuerySelec
   },
 };
 
-export type JobDescriptionUpdates = Partial<Pick<Job, 'description' | 'salary' | 'tags'>>;
+export type JobDescriptionUpdates = Partial<Pick<Job, 'description' | 'salary' | 'tags' | 'location'>>;
 
 const turndownService = new turndown({
   bulletListMarker: '-',
@@ -132,6 +132,26 @@ export async function parseJobDescriptionUpdates({
   user: User;
 
   // dependencies
+  logger: ILogger;
+  supabaseAdminClient: SupabaseClient<DbSchema, 'public'>;
+}): Promise<JobDescriptionUpdates> {
+  const updates = await parseProviderJobDescription({ site, html, job, user, ...context });
+  // the job's own page is more reliable than the search results card, so prefer its location
+  const location = parseJobPageLocation({ provider: site.provider, html });
+  return location ? { ...updates, location } : updates;
+}
+
+async function parseProviderJobDescription({
+  site,
+  html,
+  job,
+  user,
+  ...context
+}: {
+  site: JobSite;
+  job: Job;
+  html: string;
+  user: User;
   logger: ILogger;
   supabaseAdminClient: SupabaseClient<DbSchema, 'public'>;
 }): Promise<JobDescriptionUpdates> {
@@ -185,6 +205,77 @@ export async function parseJobDescriptionUpdates({
     case SiteProvider.custom:
       return await parseCustomJobDescription({ html, user, job, ...context });
   }
+}
+
+/**
+ * Read the job's location from its own page: the schema.org JobPosting data most job boards embed,
+ * falling back to LinkedIn's header. Returns undefined when the page doesn't say.
+ */
+export function parseJobPageLocation({ provider, html }: { provider: SiteProvider; html: string }): string | undefined {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  if (!document) return undefined;
+
+  for (const script of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+    try {
+      const location = jobPostingLocation(JSON.parse((script as Element).textContent));
+      if (location) return location;
+    } catch {
+      // not valid JSON, try the next one
+    }
+  }
+
+  if (provider === SiteProvider.linkedin) {
+    // logged in: "Concord, MA · 23 hours ago · 50 applicants"; logged out: the first header bullet
+    const header =
+      document.querySelector('.job-details-jobs-unified-top-card__tertiary-description-container') ??
+      document.querySelector('.job-details-jobs-unified-top-card__primary-description-container') ??
+      document.querySelector('.topcard__flavor--bullet');
+    const location = header?.textContent?.split('·')[0];
+    if (location) return cleanLocation(location);
+  }
+
+  return undefined;
+}
+
+function jobPostingLocation(data: unknown): string | undefined {
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const location = jobPostingLocation(item);
+      if (location) return location;
+    }
+    return undefined;
+  }
+  if (!data || typeof data !== 'object') return undefined;
+  const obj = data as Record<string, unknown>;
+  if (obj['@graph']) return jobPostingLocation(obj['@graph']);
+  if (obj['@type'] !== 'JobPosting') return undefined;
+
+  const places = Array.isArray(obj.jobLocation) ? obj.jobLocation : [obj.jobLocation];
+  const names = places
+    .map((place) => {
+      const address = (place as { address?: Record<string, unknown> } | undefined)?.address;
+      if (!address || typeof address !== 'object') return undefined;
+      const country = address.addressCountry;
+      const parts = [
+        address.addressLocality,
+        address.addressRegion,
+        typeof country === 'object' && country ? (country as { name?: unknown }).name : country,
+      ].filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+      // don't repeat e.g. "London, London"
+      return Array.from(new Set(parts.map((part) => part.trim()))).join(', ') || undefined;
+    })
+    .filter((name): name is string => !!name);
+  if (names.length) return cleanLocation(Array.from(new Set(names)).join(' / '));
+
+  return obj.jobLocationType === 'TELECOMMUTE' ? 'Remote' : undefined;
+}
+
+function cleanLocation(location: string): string | undefined {
+  const cleaned = location
+    .replace(/\((remote|on-site|hybrid)\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || undefined;
 }
 
 /**

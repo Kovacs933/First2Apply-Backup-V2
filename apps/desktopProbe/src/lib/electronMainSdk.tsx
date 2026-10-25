@@ -331,7 +331,7 @@ export async function generateCv(params: GenerateCvParams): Promise<GeneratedCv>
 export async function listJobsWithDescriptions(): Promise<CvSourceJob[]> {
   return await _mainProcessApiCall('list-jobs-with-descriptions', {});
 }
-export type CvSourceJob = Pick<Job, 'id' | 'title' | 'companyName' | 'description' | 'tags'>;
+export type CvSourceJob = Pick<Job, 'id' | 'title' | 'companyName' | 'description' | 'tags' | 'status'>;
 
 /**
  * Save a CV (as a full HTML page) to a PDF file the user picks.

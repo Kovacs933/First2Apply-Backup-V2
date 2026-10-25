@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
         description: updates.description ?? job.description,
         salary: !job.salary ? updates.salary : job.salary,
         tags: Array.from(new Set((job.tags ?? []).concat(updates.tags ?? []))),
+        location: updates.location ?? job.location,
       };
       if (!updates.description && isLastRetry) {
         logger.error(
@@ -121,6 +122,7 @@ Deno.serve(async (req) => {
           description: updatedJob.description,
           salary: updatedJob.salary,
           tags: updatedJob.tags,
+          location: updatedJob.location,
           status: updatedJob.status,
           updated_at: new Date(),
           exclude_reason: updatedJob.exclude_reason,

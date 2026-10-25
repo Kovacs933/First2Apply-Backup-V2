@@ -160,7 +160,8 @@ export function parseLinkedInJobs({
     const location = rawLocation
       ?.replace(/\(remote\)/i, '')
       .replace(/\(on-site\)/i, '')
-      .replace(/\(hybrid\)/i, '');
+      .replace(/\(hybrid\)/i, '')
+      .trim();
 
     return {
       siteId,
@@ -213,7 +214,8 @@ export function parseLinkedInJobs({
     const location = rawLocation
       ?.replace(/\(remote\)/i, '')
       .replace(/\(on-site\)/i, '')
-      .replace(/\(hybrid\)/i, '');
+      .replace(/\(hybrid\)/i, '')
+      .trim();
 
     const jobType = rawLocation?.toLowerCase().includes('remote')
       ? 'remote'

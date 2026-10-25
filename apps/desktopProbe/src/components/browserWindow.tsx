@@ -104,8 +104,14 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
       open: async (url: string) => {
         console.log('Opening URL in browser window:', url);
         setCurrentUrl(url);
-        await openOverlayBrowserView(url);
+        // show the header bar straight away, so it's never missing above the page
         setIsOpen(true);
+        try {
+          await openOverlayBrowserView(url);
+        } catch (error) {
+          setIsOpen(false);
+          throw error;
+        }
       },
       finish: async () => {
         const result = await finishOverlayBrowserView();
@@ -129,8 +135,20 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
     };
 
     return (
-      <div className="justify-left fixed bottom-0 left-0 right-0 top-0 z-50">
+      // above the sidebar (z-50), which would otherwise show through the header bar
+      <div className="justify-left fixed bottom-0 left-0 right-0 top-0 z-[60]">
         <div className="flex h-[50px] w-full items-center border-b bg-background px-4">
+          {/* a clear way back to the app, e.g. once LinkedIn is signed in */}
+          <Button
+            variant="outline"
+            className="mr-2 shrink-0 gap-1.5 px-3"
+            title="Close this page and go back to Foundation"
+            onClick={() => handleClose()}
+          >
+            <Cross1Icon className="h-4 w-4" />
+            <span className="hidden md:inline">Back to Foundation</span>
+          </Button>
+
           <div className="flex gap-2" id="navigation-buttons">
             <div id="back-button" className="rounded-full">
               <Button variant="ghost" size="icon" disabled={!canGoBack} onClick={() => overlayBrowserViewGoBack()}>
@@ -167,13 +185,6 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
                 }
               }}
             />
-          </div>
-
-          {/* close btn */}
-          <div className="ml-2">
-            <Button variant="ghost" size="icon" onClick={() => handleClose()}>
-              <Cross1Icon className="h-5 w-5 rounded-full" />
-            </Button>
           </div>
 
           {extraActions.map((action) => (

@@ -1,9 +1,17 @@
 import { OverlayBrowserViewResult } from '@/lib/types';
 import { WebPageRuntimeData } from '@first2apply/core';
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, WebContentsView, dialog } from 'electron';
 
 import { AutofillDetails, buildAutofillScript } from './autofillScript';
 import { getLinkedinReactContextBuilder } from './browserHelpers';
+
+function isGoogleSignIn(url: string): boolean {
+  try {
+    return new URL(url).hostname === 'accounts.google.com';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Class used to render a WebContentsView on top of the main window
@@ -61,8 +69,11 @@ export class OverlayBrowserView {
     if (!this._mainWindow) {
       throw new Error('Main window is not set');
     }
+    // a view left open (e.g. from another page) would otherwise sit there without its header bar,
+    // so reuse it for the new page
     if (this._searchView) {
-      throw new Error('Search view is already open');
+      this.navigate(url);
+      return;
     }
 
     this._searchView = new WebContentsView({
@@ -85,6 +96,22 @@ export class OverlayBrowserView {
     };
     this._searchView.webContents.on('did-navigate', sendUrlUpdate);
     this._searchView.webContents.on('did-navigate-in-page', sendUrlUpdate);
+
+    // Google blocks sign-in inside Electron apps ("This browser or app may not be secure"),
+    // so stop "Sign in with Google" here and explain instead of showing Google's error page
+    this._searchView.webContents.setWindowOpenHandler(({ url }) => {
+      if (isGoogleSignIn(url)) {
+        this._showGoogleSignInMessage();
+        return { action: 'deny' };
+      }
+      return { action: 'allow' };
+    });
+    this._searchView.webContents.on('will-navigate', (event, url) => {
+      if (isGoogleSignIn(url)) {
+        event.preventDefault();
+        this._showGoogleSignInMessage();
+      }
+    });
 
     // Apply assistant: fill the candidate's details into each page that loads (forms often appear a moment later)
     this._searchView.webContents.on('did-stop-loading', () => {
@@ -155,6 +182,21 @@ export class OverlayBrowserView {
     if (this._searchView.webContents.navigationHistory.canGoForward()) {
       this._searchView.webContents.navigationHistory.goForward();
     }
+  }
+
+  /**
+   * Tell the user that Google sign-in doesn't work inside Foundation.
+   */
+  private _showGoogleSignInMessage() {
+    if (!this._mainWindow) return;
+    dialog.showMessageBox(this._mainWindow, {
+      type: 'info',
+      title: 'Google sign-in not supported',
+      message: "Google sign-in isn't supported inside Foundation",
+      detail:
+        "Google blocks signing in from inside apps. Use this site's email and password sign-in instead. " +
+        'If it only offers Google, sign in using your normal web browser.',
+    });
   }
 
   /**

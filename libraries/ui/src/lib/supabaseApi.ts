@@ -188,7 +188,7 @@ export class F2aSupabaseApi {
     const jobs = await this._supabaseApiCall(async () =>
       this._supabase
         .from("jobs")
-        .select("id, title, companyName, description, tags")
+        .select("id, title, companyName, description, tags, status")
         .neq("status", "deleted")
         .not("description", "is", null)
         .order("id", { ascending: false })
@@ -196,7 +196,7 @@ export class F2aSupabaseApi {
     )
 
     return (jobs ?? []) as Array<
-      Pick<Job, "id" | "title" | "companyName" | "description" | "tags">
+      Pick<Job, "id" | "title" | "companyName" | "description" | "tags" | "status">
     >
   }
 
