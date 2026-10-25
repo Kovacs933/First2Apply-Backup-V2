@@ -15,7 +15,6 @@ import * as z from 'zod';
 
 import { Icons } from '../components/icons';
 import { useError } from '../hooks/error';
-import { cn } from '../lib/utils';
 import { createReview, getAppInfo, getOS, getUserReview, openExternalUrl, updateReview } from '../lib/electronMainSdk';
 import { DefaultLayout } from './defaultLayout';
 
@@ -27,17 +26,6 @@ const MICROSOFT_APP_URL = '';
 const FEEDBACK_EMAIL = 'edwardhoffman951@gmail.com';
 
 // what the feedback is about, picked with one click
-const CATEGORIES = ['Idea', 'Bug', 'Job board request', 'Praise'] as const;
-type Category = (typeof CATEGORIES)[number];
-
-// recent features that came from feedback, so people can see suggestions get built
-const BUILT_FROM_FEEDBACK = [
-  'Search every UK job board at once, with a 0-500 mile distance slider',
-  'CV Builder: see what employers ask for and build a CV around it',
-  'Apply assistant: apply to all your saved jobs with your details filled in',
-  'See when each job was posted, and only jobs that are still open',
-];
-
 const StarIcon = ({ filled = false }) => (
   <svg
     className={`h-6 w-6 ${filled ? 'text-primary' : 'text-border'} transition-colors`}
@@ -55,6 +43,7 @@ const schema = z.object({
   description: z.string().max(500).optional(),
   rating: z.number().min(1, { message: 'Rate from 1 to 5 stars' }).max(5),
   jobBoard: z.string().max(300).optional(),
+  improve: z.string().max(300).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -68,7 +57,6 @@ export function FeedbackPage() {
   const [existingReview, setExistingReview] = useState<Review | null>(null);
   const [hoveredValue, setHoveredValue] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [category, setCategory] = useState<Category>('Idea');
   // what was just sent, for the thank-you screen and the optional email
   const [sent, setSent] = useState<{ subject: string; body: string } | null>(null);
 
@@ -111,12 +99,12 @@ export function FeedbackPage() {
    */
   const onSubmit = async (values: FormValues) => {
     try {
-      const { rating, jobBoard } = values;
-      const subject = values.title?.trim() || category;
-      const title = `[${category}] ${subject}`.slice(0, 80);
+      const { rating, jobBoard, improve } = values;
+      const title = (values.title?.trim() || 'Feedback').slice(0, 80);
       const description = [
         values.description?.trim(),
         jobBoard?.trim() ? `Job boards I'd like to see: ${jobBoard.trim()}` : '',
+        improve?.trim() ? `What I'd like improved: ${improve.trim()}` : '',
         appInfo ? `Foundation ${appInfo.version} on ${appInfo.os}` : '',
       ]
         .filter(Boolean)
@@ -128,7 +116,7 @@ export function FeedbackPage() {
         : await createReview({ title, description, rating });
       setExistingReview(updatedReview);
       setSent({ subject: `Foundation feedback (${rating}/5): ${title}`, body: `${description}\n\nRating: ${rating}/5` });
-      form.reset({ title: '', description: '', jobBoard: '', rating });
+      form.reset({ title: '', description: '', jobBoard: '', improve: '', rating });
     } catch (error) {
       handleError({ error });
     } finally {
@@ -199,29 +187,6 @@ export function FeedbackPage() {
           <CardContent className="py-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">What's it about?</p>
-                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="What's it about?">
-                    {CATEGORIES.map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        role="radio"
-                        aria-checked={category === option}
-                        onClick={() => setCategory(option)}
-                        className={cn(
-                          'rounded-full border px-4 py-1.5 text-sm transition-colors',
-                          category === option
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-card hover:border-primary',
-                        )}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <FormField
                   control={form.control}
                   name="rating"
@@ -273,7 +238,7 @@ export function FeedbackPage() {
                   name="description"
                   render={({ field }) => (
                     <FormItem className="w-full">
-                      <FormLabel>{category === 'Bug' ? 'What happened?' : 'Tell us more'}</FormLabel>
+                      <FormLabel>Tell us more</FormLabel>
                       <FormControl>
                         <Textarea id="description" className="resize-none" rows={6} {...field} />
                       </FormControl>
@@ -290,6 +255,19 @@ export function FeedbackPage() {
                       <FormControl>
                         {/* half the height of the description box */}
                         <Textarea id="jobBoard" className="resize-none" rows={3} {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="improve"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel>What would you like improved?</FormLabel>
+                      <FormControl>
+                        <Textarea id="improve" className="resize-none" rows={3} {...field} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -317,20 +295,6 @@ export function FeedbackPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* show that feedback gets used */}
-      <Card className="rounded-lg">
-        <CardHeader>
-          <h2 className="text-lg font-medium">You asked, we built it</h2>
-        </CardHeader>
-        <CardContent>
-          <ul className="list-disc space-y-1 pl-5 text-sm marker:text-primary">
-            {BUILT_FROM_FEEDBACK.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
     </DefaultLayout>
   );
 }

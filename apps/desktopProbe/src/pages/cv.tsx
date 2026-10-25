@@ -33,6 +33,9 @@ import { DefaultLayout } from './defaultLayout';
 
 type SavedState = CvBuilderState;
 
+// "Write it with AI" shows greyed out as Unavailable while this is false
+const AI_WRITING_AVAILABLE = false as boolean;
+
 /**
  * CV builder: the candidate enters the role they want and their details, and Foundation builds a CV that puts first
  * what employers in their found jobs ask for, written with AI or laid out in a template.
@@ -42,7 +45,9 @@ export function CvPage() {
   const { toast } = useToast();
 
   const [state, setState] = useState<SavedState>(loadCvBuilderState);
-  const { targetRole, profile, existingCv, mode } = state;
+  const { targetRole, profile, existingCv } = state;
+  // AI writing is switched off for now, so a saved "ai" choice falls back to the template
+  const mode: CvBuilderState['mode'] = AI_WRITING_AVAILABLE ? state.mode : 'template';
   const update = (changes: Partial<SavedState>) => setState((current) => ({ ...current, ...changes }));
   const updateProfile = (changes: Partial<CvProfile>) => update({ profile: { ...profile, ...changes } });
 
@@ -79,13 +84,19 @@ export function CvPage() {
     (['fullName', 'email', 'phone', 'location', 'linkedinUrl'] as const).forEach((key) => {
       if (found[key] && !profile[key]?.trim()) filled[key] = found[key];
     });
-    // jobs and qualifications only fill in when the candidate hasn't typed any yet
-    if (found.experience?.length && !profile.experience.some((e) => e.title.trim() || e.employer.trim())) {
-      filled.experience = found.experience;
-    }
-    if (found.education?.length && !profile.education.some((e) => e.qualification.trim() || e.place.trim())) {
-      filled.education = found.education;
-    }
+    // jobs and qualifications from the CV are added after the ones already typed (empty rows are replaced),
+    // skipping any that are already there
+    const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const typedJobs = profile.experience.filter((e) => e.title.trim() || e.employer.trim());
+    const newJobs = (found.experience ?? []).filter(
+      (e) => !typedJobs.some((t) => same(t.title, e.title) && same(t.employer, e.employer)),
+    );
+    if (newJobs.length) filled.experience = [...typedJobs, ...newJobs];
+    const typedEducation = profile.education.filter((e) => e.qualification.trim() || e.place.trim());
+    const newEducation = (found.education ?? []).filter(
+      (e) => !typedEducation.some((t) => same(t.qualification, e.qualification) && same(t.place, e.place)),
+    );
+    if (newEducation.length) filled.education = [...typedEducation, ...newEducation];
     if (found.skills?.length && profile.skills.length === 0) {
       filled.skills = found.skills;
       setSkillsText(found.skills.join(', '));
@@ -99,8 +110,8 @@ export function CvPage() {
       title: `${source} added`,
       description:
         Object.keys(filled).length > 0
-          ? 'We filled in what we could below. Check it, and choose "Write it with AI" to use all of it.'
-          : 'Choose "Write it with AI" below and it will use everything in it.',
+          ? 'We filled in what we could below. Check it before you create your CV.'
+          : "We couldn't pick out any details from it. Fill them in below.",
     });
   };
 
@@ -314,34 +325,32 @@ export function CvPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Bring in your LinkedIn profile or your current CV, and Foundation fills in what it can.
         </p>
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="linkedin-url" className="flex items-center gap-2">
-              <Icons.linkedin className="h-5 w-5" />
-              Link your LinkedIn
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="linkedin-url"
-                value={linkedinInput}
-                placeholder="linkedin.com/in/your-name"
-                onChange={(e) => setLinkedinInput(e.target.value)}
-                className="min-w-0 bg-background"
-              />
-              <Button variant="default" className="shrink-0 gap-2" onClick={onOpenLinkedin}>
-                <Icons.linkedin className="h-4 w-4" />
-                Link LinkedIn
-              </Button>
-            </div>
+        <div className="mt-4 space-y-1.5">
+          <Label htmlFor="linkedin-url" className="flex items-center gap-2">
+            <Icons.linkedin className="h-5 w-5" />
+            Link your LinkedIn
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="linkedin-url"
+              value={linkedinInput}
+              placeholder="linkedin.com/in/your-name"
+              onChange={(e) => setLinkedinInput(e.target.value)}
+              className="min-w-0 bg-background"
+            />
+            <Button variant="default" className="shrink-0 gap-2" onClick={onOpenLinkedin}>
+              <Icons.linkedin className="h-4 w-4" />
+              Add LinkedIn
+            </Button>
           </div>
-          <Button variant="outline" className="shrink-0" onClick={onUploadCv}>
-            Upload your current CV
-          </Button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          LinkedIn opens inside Foundation: sign in if asked, go to your profile, then click Add LinkedIn profile at
-          the top right. CVs can be PDF, Word (.docx) or text.
-        </p>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-5">
+        <Button variant="default" onClick={onUploadCv}>
+          Upload your current CV
+        </Button>
+        <p className="mt-2 text-xs text-muted-foreground">CVs can be PDF, Word (.docx) or text.</p>
       </section>
 
       <BrowserWindow
@@ -553,6 +562,7 @@ export function CvPage() {
             title="Write it with AI"
             description="AI rewrites your details into a polished CV aimed at this role, using the employers' wording where it truly fits. It never makes anything up."
             onSelect={() => update({ mode: 'ai' })}
+            disabled={!AI_WRITING_AVAILABLE}
           />
           <ModeOption
             selected={mode === 'template'}
@@ -686,24 +696,35 @@ function ModeOption({
   title,
   description,
   onSelect,
+  disabled = false,
 }: {
   selected: boolean;
   title: string;
   description: string;
   onSelect: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={selected}
+      aria-disabled={disabled}
+      disabled={disabled}
       onClick={onSelect}
       className={cn(
         'rounded-lg border bg-card p-4 text-left transition-colors',
-        selected ? 'border-primary ring-2 ring-primary/40' : 'border-border hover:border-primary/60',
+        disabled
+          ? 'cursor-not-allowed border-border opacity-50'
+          : selected
+            ? 'border-primary ring-2 ring-primary/40'
+            : 'border-border hover:border-primary/60',
       )}
     >
-      <p className="font-medium">{title}</p>
+      <p className="font-medium">
+        {title}
+        {disabled && <span className="ml-2 text-sm font-normal text-muted-foreground">Unavailable</span>}
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </button>
   );

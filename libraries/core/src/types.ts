@@ -129,6 +129,8 @@ export type GeneratedCv = {
   education: Array<{ qualification: string; place: string; dates: string }>;
   // checks and licences employers screen for (DBS, driving licence, ...)
   credentials?: string[];
+  // skills-based layout: the top skills, each with the points from the candidate's jobs that show it
+  relevantSkills?: Array<{ skill: string; points: string[] }>;
 };
 
 export type GenerateCvParams = {

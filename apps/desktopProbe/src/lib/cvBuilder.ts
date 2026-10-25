@@ -319,7 +319,7 @@ export function buildTemplateCv({
     : '';
   const summary = profile.summary?.trim() || [opening, strengthsLine, credentialsLine, goal].filter(Boolean).join(' ');
 
-  // within each job, the points that show what employers ask for go first (older jobs keep their best three)
+  // within each job, the points that show what employers ask for go first
   const relevance = (bullet: string) =>
     employerSkills.reduce((score, e, i) => {
       const pattern = SKILLS.find((s) => s.skill === e.skill)?.pattern;
@@ -327,24 +327,75 @@ export function buildTemplateCv({
         ? score + (employerSkills.length - i)
         : score;
     }, 0);
+  const jobPoints = jobs.map((e) =>
+    (e.details ?? '')
+      .split(/\n+/)
+      .map((line) => line.replace(/^[\s•*-]+/, '').trim())
+      .filter(Boolean)
+      .map((bullet, i) => ({ bullet, i, score: relevance(bullet) }))
+      .sort((a, b) => b.score - a.score || a.i - b.i)
+      .map(({ bullet }) => bullet),
+  );
+
+  // Relevant skills (skills-based CV): the five that matter most for this role, ranked by what the role's adverts
+  // and saved jobs ask for. The candidate's own skills come first; an employer skill they didn't list only shows
+  // when their own job points show it. Each gets up to two of those points as evidence, never the same point twice.
+  const used = new Set<string>();
+  const evidenceFor = (skill: string) => {
+    const pattern = knownSkill(skill)?.pattern;
+    // the skill's own longer words, by stem: "Safeguarding and Risk Awareness" -> safegu, awaren
+    const stems = skill
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      // words too general to show a skill on their own ("SEND support" isn't shown by "supported replenishment")
+      .filter(
+        (w) =>
+          w.length >= 5 &&
+          !['skills', 'management', 'support', 'supporting', 'working', 'awareness', 'ability', 'experience'].includes(w),
+      )
+      .map((w) => w.slice(0, 6));
+    return jobPoints
+      .flat()
+      .filter((point) => !used.has(point))
+      .map((point) => ({
+        point,
+        score: (pattern?.test(point) ? 2 : 0) + stems.filter((s) => point.toLowerCase().includes(s)).length,
+      }))
+      .filter((p) => p.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2)
+      .map((p) => p.point);
+  };
+  const skillChoices = [
+    ...skills,
+    ...employerSkills
+      .map((e) => e.skill)
+      .filter((s) => !(s in CREDENTIALS) && !skills.some((own) => sameSkill(own, s))),
+  ];
+  const relevantSkills: Array<{ skill: string; points: string[] }> = [];
+  for (const skill of skillChoices) {
+    if (relevantSkills.length >= 5) break;
+    const isOwn = skills.includes(skill);
+    const points = evidenceFor(skill);
+    if (!isOwn && points.length === 0) continue;
+    points.forEach((p) => used.add(p));
+    relevantSkills.push({ skill, points });
+  }
 
   return {
     summary,
     skills,
     credentials,
+    relevantSkills,
     experience: jobs.map((e, index) => {
-      const bullets = (e.details ?? '')
-        .split(/\n+/)
-        .map((line) => line.replace(/^[\s•*-]+/, '').trim())
-        .filter(Boolean)
-        .map((bullet, i) => ({ bullet, i, score: relevance(bullet) }))
-        .sort((a, b) => b.score - a.score || a.i - b.i)
-        .map(({ bullet }) => bullet);
+      // points already shown under Relevant skills aren't repeated, but every job keeps at least one
+      const unused = jobPoints[index].filter((p) => !used.has(p));
+      const bullets = unused.length ? unused : jobPoints[index].slice(0, 1);
       return {
         title: e.title.trim(),
         employer: e.employer.trim(),
         dates: e.dates?.trim() ?? '',
-        bullets: index < 2 ? bullets : bullets.slice(0, 3),
+        bullets: index < 2 ? bullets.slice(0, 4) : bullets.slice(0, 2),
       };
     }),
     education: profile.education
@@ -412,6 +463,106 @@ function parseEducation(block: string[]): CvProfile['education'] {
   return education;
 }
 
+// a date or date range inside a line: "2021-2024", "May - December 2025", "Summer Term 2022"
+const isDatePart = (part: string) => part.length <= 40 && part.split(' ').length <= 6 && /\b(?:19|20)\d{2}\b/.test(part);
+const pipeParts = (line: string) =>
+  line
+    .split('|')
+    .map((p) => p.trim())
+    .filter(Boolean);
+// "Store Assistant| Marks & Spencer|May - December 2025| Leeds" or "Listening Volunteer Training|Samaritans"
+const isPipeEntry = (line: string) => line.length <= 160 && !line.includes('@') && pipeParts(line).length >= 2;
+const stripBullet = (line: string) => line.replace(/^[•·\-*▪●◦]\s*/, '').trim();
+// "Previous Volunteer Roles", "Professional Training/Certificates": short titles between a finished sentence and an entry
+const isSubheading = (line: string, previous?: string, next?: string) =>
+  line.length <= 45 &&
+  line.split(' ').length <= 6 &&
+  /^[A-Z]/.test(line) &&
+  !/[.,;:|]$/.test(line) &&
+  (!previous || /[.!?:]$/.test(previous)) &&
+  !!next &&
+  isPipeEntry(next);
+
+/**
+ * Jobs and qualifications from CVs that put each one on a single line split by "|" (common in Canva-style templates):
+ *   Store Assistant| Marks & Spencer|May - December 2025| Leeds, England   -> a job, then what you did below it
+ *   Durham University |2021-2024|Durham, England                           -> a school, then the qualification below it
+ *   Support Work in School and Colleges|Realise|Level 2                     -> a course or certificate (no dates)
+ */
+function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean) {
+  const experience: CvProfile['experience'] = [];
+  const education: CvProfile['education'] = [];
+  let section = '';
+
+  // the lines under an entry, up to the next entry or heading
+  const bodyOf = (from: number) => {
+    const body: string[] = [];
+    for (let i = from; i < lines.length; i++) {
+      const line = lines[i];
+      // a "|" line without dates under a school is a list of subjects, not a new entry
+      if ((isPipeEntry(line) && pipeParts(line).some(isDatePart)) || isHeading(line) || /^references\b/i.test(line)) break;
+      if (isSubheading(line, lines[i - 1], lines[i + 1])) break;
+      body.push(line);
+    }
+    return body;
+  };
+
+  lines.forEach((line, i) => {
+    if (isHeading(line) || isSubheading(line, lines[i - 1], lines[i + 1])) section = line.toLowerCase();
+    if (!isPipeEntry(line)) return;
+    const parts = pipeParts(line);
+    const dateIndex = parts.findIndex(isDatePart);
+
+    if (dateIndex === -1) {
+      // courses and certificates have no dates; only trust them under a matching heading
+      if (!/training|certificat|qualification|course|licen[cs]e/.test(section) || education.length >= 10) return;
+      const [qualification, place, level] = parts;
+      education.push({ qualification: level ? `${qualification} (${level})` : qualification, place, dates: '' });
+      return;
+    }
+
+    const before = parts.slice(0, dateIndex);
+    const dates = parts[dateIndex];
+    const body = bodyOf(i + 1).filter((l) => !isLocationLine(l) || l.split(' ').length > 3);
+
+    if (before.length === 1 && PLACE.test(before[0])) {
+      // the qualification is the lines under the school, up to a label such as "Relevant Modules:"
+      const end = body.findIndex((l) => /:$/.test(l));
+      const [first, ...rest] = (end === -1 ? body : body.slice(0, end)).map(stripBullet).filter(Boolean);
+      const qualification = [first, rest.map((l) => pipeParts(l).join(', ')).join(', ')].filter(Boolean).join(' – ');
+      if (education.length < 10) education.push({ qualification: qualification.slice(0, 150), place: before[0], dates });
+      return;
+    }
+
+    if (before.length === 0 || experience.length >= 10) return;
+    // wrapped lines join back into one point; a new point starts after a full stop, at a bullet,
+    // or at a capital letter after a line that stopped well short of the page width
+    const points: string[] = [];
+    const fullWidth = Math.max(0, ...body.map((l) => l.length));
+    body.forEach((l, n) => {
+      const previous = body[n - 1] ?? '';
+      const isNewPoint =
+        points.length === 0 ||
+        /^[•·\-*▪●◦]/.test(l) ||
+        /[.!?:]$/.test(points[points.length - 1]) ||
+        (/^[A-Z]/.test(l) && previous.length < fullWidth * 0.7);
+      if (isNewPoint) points.push(stripBullet(l));
+      else points[points.length - 1] += ` ${l}`;
+    });
+    experience.push({ title: before[0], employer: before[1] ?? '', dates, details: points.join('\n') });
+  });
+
+  return { experience, education };
+}
+
+// "L E E D S , U N I T E D K I N G D O M | 0 7 4 0 7 ..." -> "LEEDS,UNITEDKINGDOM|07407..."
+const unspaceLetters = (line: string) => {
+  const tokens = line.split(' ');
+  return tokens.length >= 8 && tokens.filter((t) => t.length === 1).length / tokens.length > 0.8 ? tokens.join('') : line;
+};
+const titleCase = (value: string) =>
+  value === value.toUpperCase() ? value.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : value;
+
 /**
  * Pick out the easy-to-spot details from a CV or LinkedIn profile's text, to pre-fill the CV Builder.
  * Anything it isn't sure about is left out.
@@ -424,21 +575,36 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
     // LinkedIn repeats each line for screen readers
     .filter((l, i, all) => l !== all[i - 1]);
 
-  const email = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0];
-  const phone = text.match(/(?:\+44\s?7\d{3}|\(?07\d{3}\)?)\s?\d{3}\s?\d{3}|(?:\+44\s?|0)(?:\d\s?){9,10}/)?.[0]?.trim();
+  // contact details are sometimes spaced out letter by letter
+  const contactText = lines.map(unspaceLetters).join('\n');
+  const email = contactText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0]?.toLowerCase();
+  const phone = contactText
+    .match(/(?:\+44\s?7\d{3}|\(?07\d{3}\)?)\s?\d{3}\s?\d{3}|(?:\+44\s?|0)(?:\d\s?){9,10}/)?.[0]
+    ?.trim();
   const linkedinUrl = text.match(/(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[A-Za-z0-9_-]+\/?/i)?.[0];
 
   // LinkedIn page titles look like "(3) Alex Taylor | LinkedIn"; a CV usually starts with the name
   const fromTitle = pageTitle?.replace(/^\(\d+\)\s*/, '').split(/\s[|–-]\s/)[0]?.trim();
-  const firstLine = lines[0];
   const looksLikeName = (value?: string) => !!value && /^[A-Za-z][A-Za-z' .-]{1,40}$/.test(value) && value.split(' ').length <= 4;
-  const fullName = looksLikeName(fromTitle) ? fromTitle : looksLikeName(firstLine) ? firstLine : undefined;
 
   // skills: the lines under a "Skills" heading, up to the next heading
   // compared without spaces, since PDFs sometimes space out headings ("E XPERIENCE")
   const squash = (line: string) => line.replace(/\s+/g, '').toLowerCase();
   const headings =
-    /^(experience|workexperience|employment|employmenthistory|education|qualifications|languages|interests|hobbies|references|certifications|licen[cs]es|projects|volunteering|about|activity|recommendations|profile|summary)/;
+    /^(experience|workexperience|employment|employmenthistory|education|qualifications|languages|interests|hobbies|references|certifications|licen[cs]es|projects|volunteering|about|activity|recommendations|profile|summary|professionalsummary|personalstatement|personalprofile|careerprofile|careersummary|professionaltraining|training|courses)/;
+  const isHeading = (line: string) => line.length <= 40 && headings.test(squash(line));
+
+  // a CV usually starts with the name, but two-column layouts can put it lower down
+  const nameLine = lines
+    .slice(0, 30)
+    .find((l) => looksLikeName(l) && l.split(' ').length >= 2 && !isHeading(l) && /^[A-Z]/.test(l));
+  const fullName = looksLikeName(fromTitle)
+    ? fromTitle
+    : looksLikeName(lines[0])
+      ? lines[0]
+      : nameLine
+        ? titleCase(nameLine)
+        : undefined;
   const start = lines.findIndex((l) => /^(key|core|technical)?skills/.test(squash(l)) && l.length <= 25);
   let skills: string[] | undefined;
   if (start !== -1) {
@@ -457,6 +623,25 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
       ),
     ].slice(0, 20);
   }
+  // two-column CVs can list the headings together and the skills further down:
+  // then take the first run of 3+ short phrases ("Coaching and Mentoring", "Relationship Building", ...)
+  if (start !== -1 && !skills?.length) {
+    const isPhrase = (l: string) =>
+      l.length <= 45 &&
+      l.split(' ').length <= 6 &&
+      /^[A-Z]/.test(l) &&
+      !/[\d|@:.,]/.test(l) &&
+      !isHeading(l) &&
+      l.toLowerCase() !== fullName?.toLowerCase() &&
+      !PLACE.test(l);
+    let run: string[] = [];
+    for (const line of lines) {
+      if (isPhrase(line)) run.push(line);
+      else if (run.length >= 3) break;
+      else run = [];
+    }
+    if (run.length >= 3) skills = run.slice(0, 20);
+  }
 
   // the lines of a section, from its heading up to the next heading
   const sectionLines = (heading: RegExp) => {
@@ -470,22 +655,35 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
     }
     return block;
   };
-  const experience = parseExperience(
-    sectionLines(/^(work|professional|employment|career)?(experience|employment|employmenthistory|history)$/),
-  ).filter((e) => e.title || e.employer);
-  const education = parseEducation(sectionLines(/^(education|qualifications|educationandqualifications)$/));
-  // e.g. "Leeds, England, United Kingdom" near the top of a LinkedIn profile
-  const location = lines
-    .slice(0, 25)
-    .find((l) => /^[A-Z][A-Za-z .'-]+, (England|Scotland|Wales|Northern Ireland|United Kingdom|UK)\b/.test(l) && l.length <= 60)
-    ?.split(',')[0]
-    .trim();
+  // one-line "Title | Employer | Dates" entries first, then the LinkedIn-style layout (title and employer above a date line)
+  const pipeEntries = parsePipeEntries(lines, isHeading);
+  const experience = pipeEntries.experience.length
+    ? pipeEntries.experience
+    : parseExperience(
+        sectionLines(/^(work|professional|employment|career)?(experience|employment|employmenthistory|history)$/),
+      ).filter((e) => e.title || e.employer);
+  const education = pipeEntries.education.length
+    ? pipeEntries.education
+    : parseEducation(sectionLines(/^(education|qualifications|educationandqualifications)$/));
+  // e.g. "Leeds, England, United Kingdom" near the top of a LinkedIn profile,
+  // or the town in a CV's contact line ("Leeds, United Kingdom | 07... | name@...")
+  const contactLine = contactText.split('\n').find((l) => l.includes('@') && l.includes('|'));
+  const location =
+    lines
+      .slice(0, 25)
+      .find((l) => /^[A-Z][A-Za-z .'-]+, (England|Scotland|Wales|Northern Ireland|United Kingdom|UK)\b/.test(l) && l.length <= 60)
+      ?.split(',')[0]
+      .trim() ??
+    (contactLine &&
+      pipeParts(contactLine)
+        .map((p) => p.split(',')[0].trim())
+        .find((p) => /^[A-Za-z][A-Za-z .'-]{1,30}$/.test(p)));
 
   return {
     ...(fullName && { fullName }),
     ...(email && { email }),
     ...(phone && { phone }),
-    ...(location && { location }),
+    ...(location && { location: titleCase(location) }),
     ...(linkedinUrl && { linkedinUrl: linkedinUrl.startsWith('http') ? linkedinUrl : `https://${linkedinUrl}` }),
     ...(skills?.length && { skills }),
     ...(experience.length && { experience }),
@@ -509,54 +707,74 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
     .map((v) => v?.trim())
     .filter(Boolean) as string[];
 
+  // Laid out like the University of Oxford Careers Service's skills-based CV: centred name and contact details,
+  // grey rules between sections, a career profile, the top skills with evidence, then work and education
   const section = (title: string, body: string) => (body ? `<section><h2>${title}</h2>${body}</section>` : '');
+  const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${e(i)}</li>`).join('')}</ul>` : '');
+  // "Title, Employer" in bold with the dates on the right
+  const heading = (main: string, dates?: string) =>
+    `<div class="row"><strong>${e(main)}</strong>${dates ? `<strong class="dates">${e(dates)}</strong>` : ''}</div>`;
+
+  // the five skills that matter most; each with its evidence when there is some, otherwise a plain bullet
+  const topSkills = cv.relevantSkills?.length ? cv.relevantSkills : cv.skills.slice(0, 5).map((skill) => ({ skill, points: [] as string[] }));
+  const withEvidence = topSkills.filter((s) => s.points.length);
+  const relevantSkills =
+    withEvidence.length > 0
+      ? topSkills
+          .map((s) => `<div class="item"><h3>${e(s.skill)}</h3>${list(s.points)}</div>`)
+          .join('')
+      : list(topSkills.map((s) => s.skill));
+
   const experience = cv.experience
     .map(
-      (job) => `<div class="item">
-  <div class="row"><strong>${e(job.title)}</strong>${job.dates ? `<span class="dates">${e(job.dates)}</span>` : ''}</div>
-  ${job.employer ? `<div class="sub">${e(job.employer)}</div>` : ''}
-  ${job.bullets.length ? `<ul>${job.bullets.map((b) => `<li>${e(b)}</li>`).join('')}</ul>` : ''}
-</div>`,
+      (job) =>
+        `<div class="item">${heading([job.title, job.employer].filter(Boolean).join(', '), job.dates)}${list(job.bullets)}</div>`,
     )
     .join('');
+  // courses and certificates (no dates, not a school) go with the checks and licences, as in the Oxford example
+  const PLACE_WORDS = /\b(university|college|school|academy|institute|sixth form|polytechnic)\b/i;
+  const isCourse = (ed: GeneratedCv['education'][number]) => !ed.dates && !PLACE_WORDS.test(ed.place);
   const education = cv.education
+    .filter((ed) => !isCourse(ed))
     .map(
-      (ed) => `<div class="item">
-  <div class="row"><strong>${e(ed.qualification)}</strong>${ed.dates ? `<span class="dates">${e(ed.dates)}</span>` : ''}</div>
-  ${ed.place ? `<div class="sub">${e(ed.place)}</div>` : ''}
-</div>`,
+      (ed) =>
+        `<div class="item">${heading(ed.place || ed.qualification, ed.dates)}${ed.place && ed.qualification ? `<p>${e(ed.qualification)}</p>` : ''}</div>`,
     )
     .join('');
+  const courses = [
+    ...cv.education.filter(isCourse).map((ed) => [ed.qualification, ed.place].filter(Boolean).join(', ')),
+    ...(cv.credentials ?? []),
+  ];
 
   return `<!doctype html>
 <html lang="en-GB"><head><meta charset="utf-8"><title>${e(profile.fullName)} - CV</title>
 <style>
-  @page { size: A4; margin: 16mm 16mm; }
+  @page { size: A4; margin: 15mm 18mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #1b2433; font-size: 10.5pt; line-height: 1.45; background: #fff; }
-  .page { max-width: 178mm; margin: 0 auto; }
-  h1 { margin: 0; font-size: 22pt; color: #1f3a5f; letter-spacing: 0.3px; }
-  .contact { margin-top: 4px; color: #4a5568; font-size: 9.5pt; }
-  .contact span + span::before { content: '  |  '; color: #c4cbd6; }
-  section { margin-top: 14px; }
-  h2 { margin: 0 0 6px; padding-bottom: 3px; font-size: 10.5pt; text-transform: uppercase; letter-spacing: 1.2px; color: #1f3a5f; border-bottom: 2px solid #e8a55a; }
+  body { margin: 0; font-family: 'Times New Roman', Times, Georgia, serif; color: #000; font-size: 11pt; line-height: 1.35; background: #fff; }
+  .page { max-width: 174mm; margin: 0 auto; }
+  header { text-align: center; padding-bottom: 8px; }
+  h1 { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+  .contact div { margin-top: 1px; }
+  section { border-top: 1.5px solid #a6a6a6; margin-top: 10px; padding-top: 4px; }
+  h2 { margin: 0 0 6px; font-family: Arial, Helvetica, sans-serif; font-size: 11.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
+  h3 { margin: 8px 0 1px; font-family: Arial, Helvetica, sans-serif; font-size: 11pt; font-weight: bold; }
   p { margin: 0; }
-  .skills { display: flex; flex-wrap: wrap; gap: 4px 6px; }
-  .skills span { padding: 1px 8px; border-radius: 10px; background: #eef2f7; font-size: 9.5pt; }
-  .item { margin-bottom: 9px; page-break-inside: avoid; }
-  .row { display: flex; justify-content: space-between; gap: 12px; }
-  .dates { color: #4a5568; font-size: 9.5pt; white-space: nowrap; }
-  .sub { color: #4a5568; }
-  ul { margin: 3px 0 0; padding-left: 17px; }
+  .item { margin-bottom: 8px; page-break-inside: avoid; }
+  .row { display: flex; justify-content: space-between; gap: 16px; }
+  .dates { white-space: nowrap; }
+  ul { margin: 2px 0 0; padding-left: 22px; }
   li { margin: 1px 0; }
 </style></head>
 <body><div class="page">
-  <h1>${e(profile.fullName || 'Your name')}</h1>
-  ${contact.length ? `<div class="contact">${contact.map((c) => `<span>${e(c)}</span>`).join('')}</div>` : ''}
-  ${section('Profile', cv.summary ? `<p>${e(cv.summary)}</p>` : '')}
-  ${section('Key skills', cv.skills.length ? `<div class="skills">${cv.skills.map((s) => `<span>${e(s)}</span>`).join('')}</div>` : '')}
-  ${section('Experience', experience)}
+  <header>
+    <h1>${e(profile.fullName || 'Your name')}</h1>
+    ${contact.length ? `<div class="contact">${contact.map((c) => `<div>${e(c)}</div>`).join('')}</div>` : ''}
+  </header>
+  ${section('Career profile', cv.summary ? `<p>${e(cv.summary)}</p>` : '')}
+  ${section('Relevant skills', relevantSkills)}
+  ${section('Work experience', experience)}
   ${section('Education', education)}
-  ${section('Checks and licences', cv.credentials?.length ? `<p>${cv.credentials.map(e).join('  ·  ')}</p>` : '')}
+  ${section('Relevant courses and certificates', list(courses))}
 </div></body></html>`;
 }
