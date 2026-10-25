@@ -22,6 +22,13 @@ This folder is the Foundation project. Open **this folder** in Claude next time.
    always gives the latest release.
 4. If the backend changed: double-click **Update Foundation online** on the Desktop.
 
+## Version 1.0.10 (25 Oct 2026)
+
+CVs tailored to the role (full personal profile, only relevant skills, Checks and licences), weighted to the jobs
+you saved and each advert's person specification, with a match-data meter; My CVs folders; LinkedIn/CV import of
+jobs and education; in-app browser fixes (header bar, Back to Foundation, Google sign-in message); job locations
+checked against the job's own page.
+
 ## Version 1.0.9 (25 Oct 2026)
 
 CV Builder (AI or template, LinkedIn import, CV upload, PDF), Apply assistant for Saved jobs, posted dates,
