@@ -23,6 +23,9 @@ export type BrowserWindowProps = {
     onClick: () => void;
     tooltip?: string;
   };
+  // optional: a short label before the address bar (e.g. "Job 2 of 7") and more buttons before the main one
+  label?: string;
+  extraActions?: Array<{ text: string; onClick: () => void; tooltip?: string }>;
 };
 
 export type BrowserWindowHandle = {
@@ -44,7 +47,7 @@ export type BrowserWindowHandle = {
  * the BrowserWindow instance.
  */
 export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>(
-  ({ onClose, customActionButton }, ref) => {
+  ({ onClose, customActionButton, label, extraActions = [] }, ref) => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentUrl, setCurrentUrl] = useState('');
     const [canGoBack, setCanGoBack] = useState(false);
@@ -146,7 +149,13 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
             </div>
           </div>
 
-          <div id="url-input" className="ml-2 w-full">
+          {label && (
+            <span className="ml-2 max-w-[30%] shrink-0 truncate text-sm font-medium" title={label}>
+              {label}
+            </span>
+          )}
+
+          <div id="url-input" className="ml-2 w-full min-w-0">
             <Input
               type="text"
               onClick={(e) => (e.target as HTMLInputElement).select()}
@@ -167,8 +176,20 @@ export const BrowserWindow = forwardRef<BrowserWindowHandle, BrowserWindowProps>
             </Button>
           </div>
 
+          {extraActions.map((action) => (
+            <Button
+              key={action.text}
+              variant="outline"
+              className="ml-2 shrink-0"
+              title={action.tooltip}
+              onClick={() => action.onClick()}
+            >
+              {action.text}
+            </Button>
+          ))}
+
           {/* custom action button */}
-          <div className="ml-2">
+          <div className="ml-2 shrink-0">
             <TooltipProvider delayDuration={500}>
               <Tooltip>
                 <TooltipTrigger className="flex gap-3" asChild>

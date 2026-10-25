@@ -42,6 +42,7 @@ const schema = z.object({
   title: z.string().min(1, { message: 'This field cannot be blank' }).max(80),
   description: z.string().min(1, { message: 'This field cannot be blank' }).max(500).optional(),
   rating: z.number().min(1, { message: 'Rate from 1 to 5 stars' }).max(5),
+  jobBoard: z.string().max(300).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -100,7 +101,11 @@ export function FeedbackPage() {
    */
   const onSubmit = async (values: FormValues) => {
     try {
-      const { title, description, rating } = values;
+      const { title, rating, jobBoard } = values;
+      // the job board answer is kept with the feedback text, so it's saved even if the email isn't sent
+      const description = [values.description?.trim(), jobBoard?.trim() ? `Job boards I'd like to see: ${jobBoard.trim()}` : '']
+        .filter(Boolean)
+        .join('\n\n');
       if (!title || !rating) return;
 
       setIsSubmitting(true);
@@ -237,6 +242,20 @@ export function FeedbackPage() {
                     </FormLabel>
                     <FormControl>
                       <Textarea id="description" className="mb-4 resize-none" rows={6} {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="jobBoard"
+                render={({ field }) => (
+                  <FormItem className="w-full">
+                    <FormLabel>Which job boards would you like to see in Foundation?</FormLabel>
+                    <FormControl>
+                      {/* half the height of the description box */}
+                      <Textarea id="jobBoard" className="resize-none" rows={3} {...field} />
                     </FormControl>
                   </FormItem>
                 )}

@@ -6,17 +6,6 @@ export function Faqs() {
       <h2 className="text-2xl font-semibold sm:text-4xl md:text-center lg:text-5xl">FAQs</h2>
 
       <Accordion type="single" collapsible className="sm:mt-[5vh]">
-        <AccordionItem value="item-1" className="sm:py-2">
-          <AccordionTrigger className="hover:text-primary text-left text-lg font-normal hover:no-underline">
-            Why is this a desktop app and not a website?
-          </AccordionTrigger>
-          <AccordionContent className="text-base font-light">
-            To maintain affordability for our users, the app is designed to utilize your device to refresh your saved
-            job searches. This method helps us avoid the higher costs associated with using our own servers for this
-            task.
-          </AccordionContent>
-        </AccordionItem>
-
         <AccordionItem value="item-2" className="sm:py-2">
           <AccordionTrigger className="hover:text-primary text-left text-lg font-normal hover:no-underline">
             Does the app automatically apply to jobs for me?
@@ -32,9 +21,9 @@ export function Faqs() {
             Can it filter out jobs that I&apos;m not interested in?
           </AccordionTrigger>
           <AccordionContent className="text-base font-light">
-            Yes! LinkedIn can sometimes show you jobs that are not relevant to your search (even with the filters you
-            set). With <b>Advanced Matching</b> the app allows you to filter out jobs based on keywords in job titles,
-            companies or even the job description.
+            Yes. On the <b>AI Filters</b> page, write in plain English what you don&apos;t want (for example &quot;Hide
+            jobs paying less than £30,000&quot;), and add any companies you never want to see. Foundation&apos;s AI
+            checks every new job against your rules and moves the ones that don&apos;t fit to the Filtered out tab.
           </AccordionContent>
         </AccordionItem>
 

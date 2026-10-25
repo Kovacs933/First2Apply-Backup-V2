@@ -1,4 +1,4 @@
-import { ArchiveIcon, DotsVerticalIcon, DownloadIcon, TrashIcon, UpdateIcon } from '@radix-ui/react-icons';
+import { BookmarkIcon, DotsVerticalIcon, DownloadIcon, TrashIcon, UpdateIcon } from '@radix-ui/react-icons';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -87,12 +87,12 @@ export function JobTabs() {
       onTabChange(tab);
 
       toast({
-        title: 'All jobs archived',
-        description: `All your ${status} jobs have been archived, you can find them in the archived tab.`,
+        title: 'All jobs saved',
+        description: `All your ${status} jobs are now in the Saved tab.`,
         variant: 'success',
       });
     } catch (error) {
-      handleError({ error, title: 'Failed to archive all jobs' });
+      handleError({ error, title: 'Failed to save all jobs' });
     }
   };
 
@@ -184,7 +184,7 @@ export function JobTabs() {
           {status === 'archived' ? (
             <>
               <span className="w-6" />
-              <span>Archived {`(${listing.archived})`}</span>
+              <span>Saved {`(${listing.archived})`}</span>
               <TabActions
                 tab="archived"
                 onTabChange={onTabChange}
@@ -194,7 +194,7 @@ export function JobTabs() {
               />
             </>
           ) : (
-            `Archived ${`(${listing.archived})`}`
+            `Saved ${`(${listing.archived})`}`
           )}
         </TabsTrigger>
         <TabsTrigger
@@ -304,8 +304,8 @@ function TabActions({
               className="cursor-pointer focus:bg-secondary/40"
               onClick={() => setIsArchiveAllDialogOpen(true)}
             >
-              <ArchiveIcon className="mb-0.5 mr-2 inline-block h-4 w-4" />
-              Archive all
+              <BookmarkIcon className="mb-0.5 mr-2 inline-block h-4 w-4" />
+              Save all
             </DropdownMenuItem>
           )}
           {/* jobs in the Deleted tab are already deleted */}
@@ -325,9 +325,9 @@ function TabActions({
       <AlertDialog open={isArchiveAllDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to archive all {tab} jobs?</AlertDialogTitle>
+            <AlertDialogTitle>Save all {tab} jobs?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone, and all jobs will be moved to the archived tab.
+              They'll all move to the Saved tab, ready to apply to.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -338,8 +338,8 @@ function TabActions({
                 onArchiveAll(tab);
               }}
             >
-              <ArchiveIcon className="mr-2 inline-block h-4 w-4" />
-              Archive All
+              <BookmarkIcon className="mr-2 inline-block h-4 w-4" />
+              Save all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

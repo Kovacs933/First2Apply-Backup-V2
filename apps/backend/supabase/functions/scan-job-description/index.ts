@@ -4,6 +4,7 @@ import { getExceptionMessage } from '@first2apply/core';
 import { applyAdvancedMatchingFilters } from '../_shared/advancedMatching.ts';
 import { CORS_HEADERS } from '../_shared/cors.ts';
 import { getEdgeFunctionContext } from '../_shared/edgeFunctions.ts';
+import { detectClosedJob } from '../_shared/jobClosed.ts';
 import { parseJobDescriptionUpdates } from '../_shared/jobDescriptionParser.ts';
 import { createLoggerWithMeta } from '../_shared/logger.ts';
 
@@ -88,12 +89,18 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { newStatus, excludeReason } = await applyAdvancedMatchingFilters({
-        logger,
-        job: updatedJob,
-        supabaseClient,
-        supabaseAdminClient,
-      });
+      // only show jobs that still exist: a closed or expired advert goes to Filtered out with the reason
+      // (checked before the AI filters, so closed jobs don't cost an AI call)
+      const closedReason = detectClosedJob({ html, tags: updatedJob.tags });
+      if (closedReason) logger.info(`[${site.provider}] job ${jobId} has closed`);
+      const { newStatus, excludeReason } = closedReason
+        ? { newStatus: 'excluded_by_advanced_matching' as const, excludeReason: closedReason }
+        : await applyAdvancedMatchingFilters({
+            logger,
+            job: updatedJob,
+            supabaseClient,
+            supabaseAdminClient,
+          });
 
       updatedJob = {
         ...updatedJob,

@@ -6,23 +6,26 @@ import { useAppState } from '@/hooks/appState';
 import { useError } from '@/hooks/error';
 import { useSession } from '@/hooks/session';
 import { useSettings } from '@/hooks/settings';
+import { loadCvBuilderState } from '@/lib/cvProfileStore';
 import {
   getJobById,
   listJobs,
   openExternalUrl,
+  overlayBrowserAutofillNow,
+  overlayBrowserViewNavigate,
   scanJob,
+  setOverlayBrowserAutofill,
   updateJobLabels,
   updateJobStatus,
 } from '@/lib/electronMainSdk';
 import { Job, JobLabel, JobStatus } from '@first2apply/core';
-import { JobSummary, TabsContent } from '@first2apply/ui';
+import { Button, JobSummary, TabsContent } from '@first2apply/ui';
 import { toast } from '@first2apply/ui';
 
 import { BrowserWindow, BrowserWindowHandle } from '../browserWindow';
 import { JobDetails } from './jobDetails';
 import { JobFilters } from './jobFilters';
 import { JobFiltersType } from './jobFilters/jobFiltersMenu';
-import { JobNotes } from './jobNotes';
 import { JobListing } from './jobTabs';
 import { JobsList } from './jobsList';
 import { JobDetailsSkeleton, JobSummarySkeleton, JobsListSkeleton } from './jobsSkeleton';
@@ -306,6 +309,107 @@ export function JobTabsContent({
     }
   };
 
+  /**
+   * Apply assistant: open each saved job in turn with the candidate's details filled into the application form.
+   * The candidate checks the form and presses Submit themselves.
+   */
+  const applyBrowserRef = useRef<BrowserWindowHandle>(null);
+  const [applyQueue, setApplyQueue] = useState<Job[]>([]);
+  const [applyIndex, setApplyIndex] = useState(0);
+  const [appliedCount, setAppliedCount] = useState(0);
+  const [isStartingApply, setIsStartingApply] = useState(false);
+  const applyJob = applyQueue[applyIndex];
+
+  const startApplying = async () => {
+    const { profile } = loadCvBuilderState();
+    if (!profile.fullName.trim() || !profile.email?.trim()) {
+      toast({
+        title: 'Add your details first',
+        description: 'Fill in at least your name and email in the CV Builder, then come back and click Apply again.',
+      });
+      navigate('/cv');
+      return;
+    }
+
+    setIsStartingApply(true);
+    try {
+      // every saved job, not just the ones loaded on screen
+      const jobs: Job[] = [];
+      let after: string | undefined;
+      do {
+        const page = await listJobs({ status: 'archived', limit: 100, after });
+        jobs.push(...page.jobs);
+        after = page.nextPageToken;
+      } while (after && jobs.length < 500);
+      if (jobs.length === 0) return;
+
+      await setOverlayBrowserAutofill({
+        fullName: profile.fullName,
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+        location: profile.location ?? '',
+        linkedinUrl: profile.linkedinUrl ?? '',
+      });
+      setApplyQueue(jobs);
+      setApplyIndex(0);
+      setAppliedCount(0);
+      await applyBrowserRef.current?.open(jobs[0].externalUrl);
+    } catch (error) {
+      handleError({ error, title: "Couldn't start applying" });
+    } finally {
+      setIsStartingApply(false);
+    }
+  };
+
+  const finishApplying = async (applied: number, closeBrowser: boolean) => {
+    await setOverlayBrowserAutofill(null).catch(() => {});
+    if (closeBrowser) await applyBrowserRef.current?.finish().catch(() => {});
+    setApplyQueue([]);
+    toast({
+      title: applied > 0 ? `You applied to ${applied} ${applied === 1 ? 'job' : 'jobs'}` : 'Apply assistant closed',
+      description: applied > 0 ? 'They are now in your Applied tab. Good luck!' : undefined,
+      variant: applied > 0 ? 'success' : undefined,
+    });
+    // reload the counts and the list
+    navigate(`?status=${status}&r=${Math.random()}`);
+  };
+
+  const nextApplyJob = async (markApplied: boolean) => {
+    if (!applyJob) return;
+    let applied = appliedCount;
+    try {
+      if (markApplied) {
+        await updateJobStatus({ jobId: applyJob.id, status: 'applied' });
+        applied += 1;
+        setAppliedCount(applied);
+      }
+      const next = applyIndex + 1;
+      if (next >= applyQueue.length) {
+        await finishApplying(applied, true);
+        return;
+      }
+      setApplyIndex(next);
+      await overlayBrowserViewNavigate(applyQueue[next].externalUrl);
+    } catch (error) {
+      handleError({ error, title: "Couldn't move to the next job" });
+    }
+  };
+
+  const fillDetailsNow = async () => {
+    try {
+      const { filled } = await overlayBrowserAutofillNow();
+      toast({
+        title: filled > 0 ? `Filled in ${filled} ${filled === 1 ? 'box' : 'boxes'}` : 'No empty boxes to fill on this page',
+        description:
+          filled > 0
+            ? 'Check them, attach your CV and answer any questions, then press Submit on the form.'
+            : 'If this is the job advert, click its Apply button first. Your details fill in when the form opens.',
+      });
+    } catch (error) {
+      handleError({ error, title: "Couldn't fill in your details" });
+    }
+  };
+
   // Scroll to the top of the job description panel when the selected job changes
   useEffect(() => {
     if (jobDescriptionRef.current) {
@@ -339,6 +443,17 @@ export function JobTabsContent({
                     labels={labels}
                     onSearchJobs={onSearchJobs}
                   />
+                  {statusItem === 'archived' && listing.archived > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3">
+                      <p className="text-sm">
+                        Apply to your {listing.archived} saved {listing.archived === 1 ? 'job' : 'jobs'} one after another,
+                        with your details filled in for you.
+                      </p>
+                      <Button size="sm" disabled={isStartingApply} onClick={startApplying}>
+                        {isStartingApply ? 'Starting ...' : 'Apply to saved jobs'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {listing.isLoading || statusItem !== status ? (
@@ -389,8 +504,6 @@ export function JobTabsContent({
                         onUpdateLabels={onUpdateJobLabels}
                         onOpenUrl={onOpenUrl}
                       />
-                      <JobNotes jobId={selectedJobId} />
-                      <hr className="border-t border-muted" />
                       <JobDetails job={selectedJob} isScrapingDescription={!!selectedJob.isLoadingJD}></JobDetails>
                     </>
                   )}
@@ -485,19 +598,19 @@ export function JobTabsContent({
                       />
                       <path
                         d="M559 787.5C582.748 787.5 602 768.248 602 744.5C602 720.752 582.748 701.5 559 701.5C535.252 701.5 516 720.752 516 744.5C516 768.248 535.252 787.5 559 787.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 772.5C77.7482 772.5 97 753.248 97 729.5C97 705.752 77.7482 686.5 54 686.5C30.2518 686.5 11 705.752 11 729.5C11 753.248 30.2518 772.5 54 772.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 703.5C71.1208 703.5 85 689.621 85 672.5C85 655.379 71.1208 641.5 54 641.5C36.8792 641.5 23 655.379 23 672.5C23 689.621 36.8792 703.5 54 703.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 646.5C66.1503 646.5 76 636.65 76 624.5C76 612.35 66.1503 602.5 54 602.5C41.8497 602.5 32 612.35 32 624.5C32 636.65 41.8497 646.5 54 646.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                     </g>
                     <defs>
@@ -592,19 +705,19 @@ export function JobTabsContent({
                       />
                       <path
                         d="M559 787.5C582.748 787.5 602 768.248 602 744.5C602 720.752 582.748 701.5 559 701.5C535.252 701.5 516 720.752 516 744.5C516 768.248 535.252 787.5 559 787.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 772.5C77.7482 772.5 97 753.248 97 729.5C97 705.752 77.7482 686.5 54 686.5C30.2518 686.5 11 705.752 11 729.5C11 753.248 30.2518 772.5 54 772.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 703.5C71.1208 703.5 85 689.621 85 672.5C85 655.379 71.1208 641.5 54 641.5C36.8792 641.5 23 655.379 23 672.5C23 689.621 36.8792 703.5 54 703.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                       <path
                         d="M54 646.5C66.1503 646.5 76 636.65 76 624.5C76 612.35 66.1503 602.5 54 602.5C41.8497 602.5 32 612.35 32 624.5C32 636.65 41.8497 646.5 54 646.5Z"
-                        fill="#809966"
+                        fill="#E8A55A"
                       />
                     </g>
                     <defs>
@@ -627,6 +740,20 @@ export function JobTabsContent({
           text: 'Applied',
           onClick: () => markSelectedJobAsApplied(),
           tooltip: 'Mark this job as applied',
+        }}
+      ></BrowserWindow>
+      <BrowserWindow
+        ref={applyBrowserRef}
+        onClose={() => finishApplying(appliedCount, false)}
+        label={applyJob ? `Job ${applyIndex + 1} of ${applyQueue.length}: ${applyJob.title} at ${applyJob.companyName}` : ''}
+        extraActions={[
+          { text: 'Fill my details', onClick: fillDetailsNow, tooltip: 'Fill your details into the form on this page' },
+          { text: 'Skip', onClick: () => nextApplyJob(false), tooltip: "Don't apply to this one, go to the next job" },
+        ]}
+        customActionButton={{
+          text: applyIndex + 1 >= applyQueue.length ? 'Applied, finish' : 'Applied, next job',
+          onClick: () => nextApplyJob(true),
+          tooltip: 'Press this after you have submitted the application',
         }}
       ></BrowserWindow>
       <BrowserWindow

@@ -1,11 +1,8 @@
 import {
-  ArchiveIcon,
-  BackpackIcon,
+  BookmarkIcon,
   CheckIcon,
-  CookieIcon,
   CopyIcon,
   InfoCircledIcon,
-  ListBulletIcon,
   ResetIcon,
   TrashIcon,
 } from "@radix-ui/react-icons"
@@ -122,27 +119,10 @@ export function JobSummary({
         )}
       </div>
 
-      {/* Job details */}
-      <div className="mt-3 space-y-1.5 lg:mt-4">
-        {job.jobType && (
-          <div className="flex items-center gap-3 capitalize text-muted-foreground">
-            <BackpackIcon className="h-4 w-4" />
-            {job.jobType}
-          </div>
-        )}
-        {job.salary && (
-          <div className="flex items-center gap-3 text-muted-foreground">
-            <CookieIcon className="h-4 w-4" />
-            {job.salary}
-          </div>
-        )}
-        {job.tags.length > 0 && (
-          <div className="flex items-center gap-3 text-muted-foreground">
-            <ListBulletIcon className="h-4 w-4" />
-            <p className="text-wrap">{job.tags?.slice(0, 5).join(", ")}</p>
-          </div>
-        )}
-      </div>
+      {/* salary, type, tags and dates are listed in the job's Key details, below */}
+      {job.salary && (
+        <p className="mt-3 font-medium lg:mt-4">{job.salary}</p>
+      )}
 
       {/* Filtered out job explainer */}
       {job.status === "excluded_by_advanced_matching" && job.exclude_reason && (
@@ -157,9 +137,9 @@ export function JobSummary({
 
       {/* Action buttons */}
       <div
-        className={`mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between ${job.status !== "excluded_by_advanced_matching" && "lg:mt-10"}`}
+        className={`mt-6 flex flex-wrap items-start justify-between gap-2 ${job.status !== "excluded_by_advanced_matching" && "lg:mt-10"}`}
       >
-        <div className="flex justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Open button */}
           <Button
             size="lg"
@@ -226,12 +206,12 @@ export function JobSummary({
                     className="w-10 border-none bg-border px-0 transition-colors duration-200 ease-in-out hover:bg-foreground/15 focus:bg-foreground/15"
                     onClick={() => onUpdateJobStatus(job.id, "archived")}
                   >
-                    <ArchiveIcon className="h-4 w-auto" />
+                    <BookmarkIcon className="h-4 w-auto" />
                   </Button>
                 </TooltipTrigger>
 
                 <TooltipContent side="bottom" className="text-base">
-                  Archive
+                  Save for later
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -303,7 +283,10 @@ export function JobSummary({
 
       {/* Timestamp */}
       <p className="mt-2 text-xs text-foreground/80">
-        detected {getRelativeTimeString(new Date(job.created_at))}
+        {job.postedAt
+          ? `Posted ${getRelativeTimeString(new Date(job.postedAt))} · `
+          : ""}
+        Found {getRelativeTimeString(new Date(job.created_at))}
       </p>
     </div>
   )

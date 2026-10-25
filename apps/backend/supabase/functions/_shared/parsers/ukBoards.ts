@@ -3,6 +3,7 @@ import { DOMParser, Document, Element } from 'deno-dom-wasm';
 
 import { JobSiteParseResult, ParsedJob } from './parserTypes.ts';
 import { safeMapJobs } from './parserHelpers.ts';
+import { parsePostedText } from './postedDate.ts';
 
 /**
  * Parsers for UK job boards: Reed, Totaljobs (also CWJobs), CV-Library, Adzuna,
@@ -88,6 +89,8 @@ export function parseReedJobs({ siteId, html }: { siteId: number; html: string }
 
     const companyName = text(el.querySelector('[data-qa="job-posted-by"] a'));
     if (!companyName) return null;
+    // ex: "18 September by Exam Papers Plus", "Yesterday by ..."
+    const postedAt = parsePostedText(text(el.querySelector('[data-qa="job-posted-by"]'))?.split(' by ')[0]);
 
     const salary = text(el.querySelector('[data-qa="job-metadata-salary"]'));
     const location = text(el.querySelector('[data-qa="job-metadata-location"]'));
@@ -108,6 +111,7 @@ export function parseReedJobs({ siteId, html }: { siteId: number; html: string }
       jobType: detectJobType(location, ...tags),
       labels: [],
       tags,
+      postedAt,
     };
   });
 }
@@ -148,7 +152,8 @@ export function parseTotaljobsJobs({ siteId, html }: { siteId: number; html: str
       salary: text(el.querySelector('[data-at="job-item-salary-info"]')),
       jobType: detectJobType(location, workFromHome),
       labels: [],
-      tags: postedAt ? [postedAt] : [],
+      tags: [],
+      postedAt: parsePostedText(postedAt),
     };
   });
 }
@@ -379,7 +384,8 @@ export function parseCharityJobJobs({ siteId, html }: { siteId: number; html: st
       salary,
       jobType: detectJobType(location),
       labels: [],
-      tags: postedAt ? [postedAt] : [],
+      tags: [],
+      postedAt: parsePostedText(postedAt),
     };
   });
 }

@@ -48,12 +48,12 @@ export function JobDescription({ job }: JobDescriptionProps) {
         <path
           d="M140.09162,291.85056c0-78.36865,54.255-141.78356,121.30372-141.78356"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <path
           d="M70.77521,158.66768c0,73.61476,31.00285,133.18288,69.31641,133.18288"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <path
           d="M140.09162,291.85056c0-100.13772,62.7103-181.16788,140.20819-181.16788"
@@ -182,7 +182,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
           y="150"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.4"
         />
         <rect
@@ -190,16 +190,16 @@ export function JobDescription({ job }: JobDescriptionProps) {
           y="150"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.8"
         />
-        <rect x="317.60911" y="150" width="16" height="16" fill="#809966" />
+        <rect x="317.60911" y="150" width="16" height="16" fill="#E8A55A" />
         <rect
           x="271.60911"
           y="251"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.4"
         />
         <rect
@@ -207,16 +207,16 @@ export function JobDescription({ job }: JobDescriptionProps) {
           y="251"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.8"
         />
-        <rect x="317.60911" y="251" width="16" height="16" fill="#809966" />
+        <rect x="317.60911" y="251" width="16" height="16" fill="#E8A55A" />
         <rect
           x="271.60911"
           y="352"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.4"
         />
         <rect
@@ -224,10 +224,10 @@ export function JobDescription({ job }: JobDescriptionProps) {
           y="352"
           width="16"
           height="16"
-          fill="#809966"
+          fill="#E8A55A"
           opacity="0.8"
         />
-        <rect x="317.60911" y="352" width="16" height="16" fill="#809966" />
+        <rect x="317.60911" y="352" width="16" height="16" fill="#E8A55A" />
         <circle cx="316.60911" cy="538" r="79" fill="#2f2e41" />
         <rect x="280.60911" y="600" width="24" height="43" fill="#2f2e41" />
         <rect x="328.60911" y="600" width="24" height="43" fill="#2f2e41" />
@@ -238,7 +238,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
         <path
           d="M271.36733,565.03228c-6.37889-28.56758,14.01185-57.43392,45.544-64.47477s62.2651,10.41,68.644,38.9776-14.51861,39.10379-46.05075,46.14464S277.74622,593.59986,271.36733,565.03228Z"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <ellipse
           cx="417.21511"
@@ -283,11 +283,11 @@ export function JobDescription({ job }: JobDescriptionProps) {
           />
           <path
             d="M108.701 191.35C108.701 112.982 162.956 49.5669 230.004 49.5669Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             d="M39.3843 58.1675C39.3843 131.782 70.3872 191.35 108.701 191.35Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             d="M108.701 191.35C108.701 91.2128 171.411 10.1826 248.909 10.1826Z"
@@ -395,36 +395,36 @@ export function JobDescription({ job }: JobDescriptionProps) {
           <path
             opacity="0.4"
             d="M287.609 150H271.609V166H287.609V150Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             opacity="0.8"
             d="M310.609 150H294.609V166H310.609V150Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
-          <path d="M333.609 150H317.609V166H333.609V150Z" fill="#809966" />
+          <path d="M333.609 150H317.609V166H333.609V150Z" fill="#E8A55A" />
           <path
             opacity="0.4"
             d="M287.609 251H271.609V267H287.609V251Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             opacity="0.8"
             d="M310.609 251H294.609V267H310.609V251Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
-          <path d="M333.609 251H317.609V267H333.609V251Z" fill="#809966" />
+          <path d="M333.609 251H317.609V267H333.609V251Z" fill="#E8A55A" />
           <path
             opacity="0.4"
             d="M287.609 352H271.609V368H287.609V352Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             opacity="0.8"
             d="M310.609 352H294.609V368H310.609V352Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
-          <path d="M333.609 352H317.609V368H333.609V352Z" fill="#809966" />
+          <path d="M333.609 352H317.609V368H333.609V352Z" fill="#E8A55A" />
           <path
             d="M316.609 617C360.24 617 395.609 581.63 395.609 538C395.609 494.37 360.24 459 316.609 459C272.979 459 237.609 494.37 237.609 538C237.609 581.63 272.979 617 316.609 617Z"
             fill="#717171"
@@ -449,7 +449,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
           />
           <path
             d="M239.976 464.532C233.598 435.965 253.988 407.098 285.52 400.057C317.053 393.017 347.786 410.467 354.164 439.035C360.543 467.603 339.646 478.139 308.114 485.18C276.582 492.221 246.355 493.1 239.976 464.532Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             d="M390.704 522.244C410.759 513.66 424.833 501.597 422.138 495.301C419.443 489.005 401.001 490.86 380.945 499.444C360.89 508.028 346.816 520.09 349.511 526.386C352.205 532.682 370.648 530.828 390.704 522.244Z"

@@ -1,13 +1,15 @@
 import { getExceptionMessage } from '@first2apply/core';
 import { Job } from '@first2apply/core';
 import { F2aSupabaseApi } from '@first2apply/ui';
-import { dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron';
 import fs from 'fs';
 import { json2csv } from 'json-2-csv';
 import os from 'os';
+import path from 'path';
 
 import { IAnalyticsClient } from '../lib/analytics';
 import { F2aAutoUpdater } from './autoUpdater';
+import { extractCvText } from './cvFileReader';
 import { JobScanner } from './jobScanner';
 import { OverlayBrowserView } from './overlayBrowserView';
 import { getStripeConfig } from './stripeConfig';
@@ -220,6 +222,32 @@ export function initRendererIpcApi({
     }),
   );
 
+  ipcMain.handle('generate-cv', async (event, { params }) => _apiCall(() => supabaseApi.generateCv(params)));
+  ipcMain.handle('list-jobs-with-descriptions', async () => _apiCall(() => supabaseApi.listJobsWithDescriptions()));
+
+  // turn the CV page into a PDF and let the user choose where to save it
+  ipcMain.handle('save-cv-pdf', async (event, { html, fileName }) =>
+    _apiCall(async () => {
+      const res = await dialog.showSaveDialog({
+        defaultPath: path.join(app.getPath('documents'), fileName),
+        properties: ['createDirectory'],
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (res.canceled || !res.filePath) return { saved: false };
+
+      const pdfWindow = new BrowserWindow({ show: false, webPreferences: { javascript: false } });
+      try {
+        await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        const pdf = await pdfWindow.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+        fs.writeFileSync(res.filePath, pdf);
+      } finally {
+        pdfWindow.destroy();
+      }
+      shell.showItemInFolder(res.filePath);
+      return { saved: true };
+    }),
+  );
+
   ipcMain.handle('change-all-job-status', async (event, { from, to }) =>
     _apiCall(async () => {
       const job = await supabaseApi.changeAllJobStatus({ from, to });
@@ -309,4 +337,25 @@ export function initRendererIpcApi({
   ipcMain.handle('overlay-browser-view-navigate', async (event, { url }) => {
     return _apiCall(async () => overlayBrowserView.navigate(url));
   });
+  ipcMain.handle('overlay-browser-set-autofill', async (event, { details }) => {
+    return _apiCall(async () => overlayBrowserView.setAutofill(details));
+  });
+  ipcMain.handle('overlay-browser-autofill-now', async () => {
+    return _apiCall(async () => ({ filled: await overlayBrowserView.autofill() }));
+  });
+  ipcMain.handle('overlay-browser-page-text', async () => {
+    return _apiCall(async () => overlayBrowserView.pageText());
+  });
+
+  // the text of a CV file the user picks (PDF, Word or plain text), to fill in the CV Builder
+  ipcMain.handle('read-cv-file', async () =>
+    _apiCall(async () => {
+      const res = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'CV', extensions: ['pdf', 'docx', 'txt'] }],
+      });
+      if (res.canceled || !res.filePaths[0]) return null;
+      return { fileName: path.basename(res.filePaths[0]), text: await extractCvText(res.filePaths[0]) };
+    }),
+  );
 }

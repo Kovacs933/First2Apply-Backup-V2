@@ -1,6 +1,8 @@
 import {
   AdvancedMatchingConfig,
   DbSchema,
+  GenerateCvParams,
+  GeneratedCv,
   Job,
   JobLabel,
   JobStatus,
@@ -16,6 +18,23 @@ import {
 } from "@supabase/supabase-js"
 import { backOff } from "exponential-backoff"
 import * as luxon from "luxon"
+
+/** A request that never reached the server or lost its connection (e.g. "fetch failed", ECONNRESET). */
+function isNetworkError(error: unknown) {
+  const text = [
+    error instanceof Error ? `${error.name} ${error.message}` : "",
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message: unknown }).message)
+      : "",
+    typeof error === "object" && error && "details" in error
+      ? String((error as { details: unknown }).details)
+      : "",
+    String(error),
+  ].join(" ")
+  return /fetch failed|failed to fetch|FunctionsFetchError|failed to send a request to the edge function|ECONNRESET|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket hang up|network/i.test(
+    text
+  )
+}
 
 /**
  * Class used to interact with our Supabase API.
@@ -134,6 +153,51 @@ export class F2aSupabaseApi {
     )
 
     return { link, newJobs }
+  }
+
+  /**
+   * Write a CV for the target role with AI, using what employers in the user's found jobs ask for.
+   */
+  async generateCv(params: GenerateCvParams): Promise<GeneratedCv> {
+    try {
+      const { cv } = await this._supabaseApiCall(() =>
+        this._supabase.functions.invoke<{ cv: GeneratedCv }>("generate-cv", {
+          body: params,
+        })
+      )
+
+      return cv
+    } catch (error) {
+      // the AI writer isn't on the server (not deployed yet), so say what to do instead of "non-2xx status code"
+      if (
+        error instanceof Error &&
+        (error.name === "FunctionsHttpError" || /non-2xx/i.test(error.message))
+      ) {
+        throw new Error(
+          "AI writing isn't available right now. Choose 'Use a template (no AI)' to create your CV."
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * The user's most recent jobs that have a description (deleted ones left out), used to see what employers ask for.
+   */
+  async listJobsWithDescriptions({ limit = 500 }: { limit?: number } = {}) {
+    const jobs = await this._supabaseApiCall(async () =>
+      this._supabase
+        .from("jobs")
+        .select("id, title, companyName, description, tags")
+        .neq("status", "deleted")
+        .not("description", "is", null)
+        .order("id", { ascending: false })
+        .limit(limit)
+    )
+
+    return (jobs ?? []) as Array<
+      Pick<Job, "id" | "title" | "companyName" | "description" | "tags">
+    >
   }
 
   /**
@@ -412,18 +476,31 @@ export class F2aSupabaseApi {
       { data: T | null; error: null } | { data: null; error: E }
     >
   ) {
-    const { data, error } = await backOff(
-      async () => {
-        const result = await method()
+    let result: Awaited<ReturnType<typeof method>>
+    try {
+      result = await backOff(
+        async () => {
+          const result = await method()
+          // supabase returns a dropped connection as an error instead of throwing it, so throw it here to retry
+          if (result.error && isNetworkError(result.error)) throw result.error
 
-        return result
-      },
-      {
-        numOfAttempts: 5,
-        jitter: "full",
-        startingDelay: 300,
+          return result
+        },
+        {
+          numOfAttempts: 5,
+          jitter: "full",
+          startingDelay: 300,
+        }
+      )
+    } catch (error) {
+      if (isNetworkError(error)) {
+        throw new Error(
+          "Couldn't reach Foundation's server. Check your internet connection and try again."
+        )
       }
-    )
+      throw error
+    }
+    const { data, error } = result
 
     if (error) throw error
 

@@ -12,7 +12,7 @@ INSERT INTO public.sites (id, name, urls, created_at, "queryParamsToRemove", log
 (5, 'We Work Remotely', ARRAY['https://weworkremotely.com']::text[], '2024-01-20 15:06:51.637899+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/weworkremotely.png', ARRAY['/']::text[], 'weworkremotely', false, false),
 (10, 'Remotive', ARRAY['https://remotive.com']::text[], '2024-02-29 20:19:10.0231+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/remotive.png', ARRAY[]::text[], 'remotive', false, false),
 (14, 'Robert Half', ARRAY['https://www.roberthalf.com/gb/en','https://www.roberthalf.com']::text[], '2024-03-10 15:59:51.175727+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/robert-half.png', ARRAY['/','/us/en/','/gb/en/']::text[], 'robertHalf', false, false),
-(17, 'Custom Job Board (Beta)', ARRAY['https://google.com/']::text[], '2025-08-29 10:21:22.12473+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/custom.png', ARRAY['/']::text[], 'custom', false, false),
+(17, 'Custom Job Board', ARRAY['https://google.com/']::text[], '2025-08-29 10:21:22.12473+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/custom.png', ARRAY['/']::text[], 'custom', false, false),
 (18, 'Hiring Cafe', ARRAY['https://hiring.cafe']::text[], '2026-05-10 09:00:00+00', NULL, 'https://vnawaforiamopaudfefi.supabase.co/storage/v1/object/public/first2apply-public/hiringcafe.svg', ARRAY[]::text[], 'hiringCafe', false, false),
 
 -- US-only (or other country) boards, no longer offered

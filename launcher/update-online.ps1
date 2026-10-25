@@ -25,8 +25,38 @@ if (-not $token.StartsWith('sbp_')) {
 }
 $env:SUPABASE_ACCESS_TOKEN = $token
 
+# optional: the AI key used by the AI filters and the AI CV writer (from openrouter.ai/keys)
+Write-Host ''
+Write-Host '  OPTIONAL: to switch on the AI filters and AI CV writing, paste an OpenRouter key'
+Write-Host '  (from https://openrouter.ai/keys, it starts with sk-or-). Or just press Enter to skip.'
+$secureAi = Read-Host '  OpenRouter key' -AsSecureString
+$aiKey = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAi)).Trim()
+
 Write-Host "`n  Thanks! Uploading the update now. This takes a few minutes - you can leave it running.`n" -ForegroundColor Green
 try {
+  $env:npm_config_loglevel = 'error'
+  $passwordFile = Join-Path $PSScriptRoot 'hosted-db-password.txt'
+  if (-not (Test-Path $passwordFile)) { throw 'launcher\hosted-db-password.txt is missing (it was made by the first online setup).' }
+  $dbPassword = (Get-Content $passwordFile -Raw).Trim()
+  Set-Location (Join-Path (Split-Path $PSScriptRoot -Parent) 'apps\backend')
+
+  # 1. the database first: the new functions save to its new columns
+  Write-Host '== Updating the database' -ForegroundColor Cyan
+  npx supabase link --project-ref $ProjectRef --password $dbPassword
+  if ($LASTEXITCODE -ne 0) { throw 'Linking the project failed (see the messages above)' }
+  npx supabase db push --include-seed --password $dbPassword --yes
+  if ($LASTEXITCODE -ne 0) { throw 'Updating the database failed (see the messages above)' }
+
+  # 2. the AI key, if one was pasted
+  if ($aiKey) {
+    if (-not $aiKey.StartsWith('sk-or-')) { throw "That doesn't look like an OpenRouter key (they start with sk-or-)." }
+    Write-Host '== Saving the AI key' -ForegroundColor Cyan
+    npx supabase secrets set "OPENROUTER_API_KEY=$aiKey" --project-ref $ProjectRef
+    if ($LASTEXITCODE -ne 0) { throw 'Saving the AI key failed (see the messages above)' }
+  }
+
+  # 3. the functions
+  Write-Host '== Uploading the functions' -ForegroundColor Cyan
   & (Join-Path $PSScriptRoot 'deploy-functions.ps1') -ProjectRef $ProjectRef
   Write-Host "`n  ALL DONE. Close this window and tell Claude it finished." -ForegroundColor Green
 } catch {

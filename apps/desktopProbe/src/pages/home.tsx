@@ -37,7 +37,7 @@ export function Home() {
 function Loading() {
   return (
     <DefaultLayout className="p-6 pb-0 md:px-10">
-      <div className="mb-2 flex h-[68px] w-full animate-pulse flex-row gap-1 rounded-lg bg-[#809966]/5 p-2">
+      <div className="mb-2 flex h-[68px] w-full animate-pulse flex-row gap-1 rounded-lg bg-[#E8A55A]/5 p-2">
         <Skeleton className="flex-1" />
         <Skeleton className="flex-1" />
         <Skeleton className="flex-1" />

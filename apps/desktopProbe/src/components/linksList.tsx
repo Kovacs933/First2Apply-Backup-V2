@@ -1,4 +1,4 @@
-import { CopyIcon, Pencil1Icon, QuestionMarkCircledIcon, TrashIcon } from '@radix-ui/react-icons';
+import { CopyIcon, Pencil1Icon, QuestionMarkCircledIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons';
 import { useMemo, useState } from 'react';
 import ReactTimeAgo from 'react-time-ago';
 
@@ -18,10 +18,14 @@ export function LinksList({
   onDeleteLink,
   onDebugLink,
   onUpdateLink,
+  onScanLink,
+  scanningLinkIds = new Set(),
   scanHealth = {},
 }: {
   links: Link[];
   scanHealth?: Record<number, LinkScanHealth>;
+  scanningLinkIds?: Set<number>;
+  onScanLink: (linkId: number) => void;
   onDeleteLink: (linkId: number) => void;
   onDebugLink: (linkId: number) => void;
   onUpdateLink: (data: { linkId: number; title: string }) => Promise<void>;
@@ -70,20 +74,32 @@ export function LinksList({
               {link.url}
             </p> */}
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-light text-foreground/40">
-                    {'Last successful check '}
-                    <ReactTimeAgo date={new Date(link.last_scraped_at)} locale="en-US" />
-                  </p>
-                  <p className="text-xs font-light text-foreground/40">
-                    {'Added '}
-                    <ReactTimeAgo date={new Date(link.created_at)} locale="en-US" />
-                  </p>
-                </div>
+              {/* dates above the buttons, so neither gets squashed in a narrow window */}
+              <div className="mt-auto flex flex-col gap-3">
+                <p className="text-xs font-light text-foreground/50">
+                  {'Last successful check '}
+                  <ReactTimeAgo date={new Date(link.last_scraped_at)} locale="en-US" />
+                  {' · Added '}
+                  <ReactTimeAgo date={new Date(link.created_at)} locale="en-US" />
+                </p>
 
                 {/* actions */}
-                <div>
+                <div className="flex flex-wrap items-center justify-end gap-y-2">
+                  {/* search this one again now */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mr-auto rounded-full bg-secondary/50 px-3 text-sm transition-colors duration-200 ease-in-out hover:bg-secondary focus:bg-secondary"
+                    disabled={scanningLinkIds.has(link.id)}
+                    onClick={(evt) => {
+                      evt.stopPropagation();
+                      onScanLink(link.id);
+                    }}
+                  >
+                    <ReloadIcon className={`mr-1.5 h-4 w-4 ${scanningLinkIds.has(link.id) ? 'animate-spin' : ''}`} />
+                    {scanningLinkIds.has(link.id) ? 'Searching' : 'Search again'}
+                  </Button>
+
                   {isInFailureState(link) && (
                     <Button
                       variant="secondary"

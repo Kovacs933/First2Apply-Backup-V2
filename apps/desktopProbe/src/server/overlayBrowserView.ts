@@ -2,6 +2,7 @@ import { OverlayBrowserViewResult } from '@/lib/types';
 import { WebPageRuntimeData } from '@first2apply/core';
 import { BrowserWindow, WebContentsView } from 'electron';
 
+import { AutofillDetails, buildAutofillScript } from './autofillScript';
 import { getLinkedinReactContextBuilder } from './browserHelpers';
 
 /**
@@ -13,6 +14,38 @@ export class OverlayBrowserView {
   private _mainWindow?: BrowserWindow;
   private _searchView?: WebContentsView;
   private _resizeListener?: () => void;
+  private _autofill?: AutofillDetails;
+
+  /**
+   * Turn the Apply assistant's form filling on (with the candidate's details) or off (null).
+   */
+  setAutofill(details: AutofillDetails | null) {
+    this._autofill = details ?? undefined;
+  }
+
+  /**
+   * Fill the candidate's details into the current page, including forms embedded from other sites.
+   * Returns how many boxes were filled.
+   */
+  async autofill(): Promise<number> {
+    if (!this._searchView || !this._autofill) return 0;
+    const script = buildAutofillScript(this._autofill);
+    const frames = this._searchView.webContents.mainFrame.framesInSubtree;
+    const counts = await Promise.all(
+      frames.map((frame) => frame.executeJavaScript(script).then((n) => Number(n) || 0).catch(() => 0)),
+    );
+    return counts.reduce((sum, n) => sum + n, 0);
+  }
+
+  /**
+   * The visible text of the current page (used to import a LinkedIn profile into the CV Builder).
+   */
+  async pageText(): Promise<{ url: string; title: string; text: string }> {
+    if (!this._searchView) throw new Error('The browser is not open');
+    const webContents = this._searchView.webContents;
+    const text: string = await webContents.executeJavaScript('document.body ? document.body.innerText : ""');
+    return { url: webContents.getURL(), title: webContents.getTitle(), text };
+  }
 
   /**
    * Set the parent main window.
@@ -52,6 +85,12 @@ export class OverlayBrowserView {
     };
     this._searchView.webContents.on('did-navigate', sendUrlUpdate);
     this._searchView.webContents.on('did-navigate-in-page', sendUrlUpdate);
+
+    // Apply assistant: fill the candidate's details into each page that loads (forms often appear a moment later)
+    this._searchView.webContents.on('did-stop-loading', () => {
+      if (!this._autofill) return;
+      setTimeout(() => this.autofill().catch(() => {}), 1200);
+    });
 
     this._mainWindow.contentView.addChildView(this._searchView);
 

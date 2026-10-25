@@ -1,6 +1,7 @@
 import {
   ChatBubbleIcon,
   Crosshair2Icon,
+  FileTextIcon,
   GearIcon,
   HomeIcon,
   MagnifyingGlassIcon,
@@ -37,6 +38,11 @@ export function Navbar() {
       icon: <Crosshair2Icon className="h-7 w-7" />,
     },
     {
+      name: 'CV Builder',
+      path: '/cv',
+      icon: <FileTextIcon className="h-7 w-7" />,
+    },
+    {
       name: 'Feedback',
       path: '/feedback',
       icon: <ChatBubbleIcon className="h-7 w-7" />,
@@ -63,17 +69,17 @@ export function Navbar() {
     isScanning ? <RefreshCw className="h-7 w-7 animate-spin" /> : <Icons.logo className="h-7 w-7"></Icons.logo>;
 
   return (
-    <nav className="fixed z-50 flex h-screen w-16 flex-col items-center justify-between border-r border-muted-foreground/20 py-6 md:p-10 2xl:w-56 2xl:items-start">
-      <div className="flex flex-col items-center gap-6 2xl:items-start">
-        <Link to={isScanning ? '/links' : '/'} className="mb-16 md:mb-20">
+    <nav className="fixed z-50 flex h-screen w-44 flex-col items-start justify-between overflow-y-auto border-r border-muted-foreground/20 px-4 py-6 md:w-52 md:px-8 md:py-10">
+      <div className="flex flex-col items-start gap-5">
+        <Link to={isScanning ? '/links' : '/'} className="mb-10 md:mb-14">
           <TooltipProvider delayDuration={500}>
             <Tooltip>
               <TooltipTrigger className="flex gap-3">
                 <Logo />
-                <span className="hidden text-lg 2xl:inline-block">{isScanning ? 'Scanning ...' : 'Foundation'}</span>
+                <span className="text-lg">{isScanning ? 'Scanning ...' : 'Foundation'}</span>
               </TooltipTrigger>
 
-              <TooltipContent side="right" className="text-base 2xl:hidden">
+              <TooltipContent side="right" className="hidden">
                 {isScanning ? 'Scanning for new jobs ...' : 'Foundation'}
               </TooltipContent>
             </Tooltip>
@@ -92,11 +98,11 @@ export function Navbar() {
                   }`}
                 >
                   {item.icon}
-                  <span className="hidden text-lg 2xl:inline-block">{item.name}</span>
+                  <span className="whitespace-nowrap text-base">{item.name}</span>
                 </Link>
               </TooltipTrigger>
 
-              <TooltipContent side="right" className="text-base 2xl:hidden">
+              <TooltipContent side="right" className="hidden">
                 {item.name}
               </TooltipContent>
             </Tooltip>
@@ -113,11 +119,11 @@ export function Navbar() {
               className="flex items-center gap-3 p-1 hover:text-primary"
             >
               {theme === 'dark' ? <SunIcon className="h-7 w-7" /> : <MoonIcon className="h-7 w-7" />}
-              <span className="hidden text-lg 2xl:inline-block">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              <span className="whitespace-nowrap text-base">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
           </TooltipTrigger>
 
-          <TooltipContent side="right" className="text-base 2xl:hidden">
+          <TooltipContent side="right" className="hidden">
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </TooltipContent>
         </Tooltip>

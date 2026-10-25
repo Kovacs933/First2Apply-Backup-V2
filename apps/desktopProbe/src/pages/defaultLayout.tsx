@@ -9,7 +9,7 @@ export function DefaultLayout({ className, children }: { className?: string; chi
   return (
     <>
       <Navbar />
-      <main className="ml-16 md:ml-20 2xl:ml-56">
+      <main className="ml-44 md:ml-52">
         <div className={cn('mx-auto min-h-screen max-w-[1536px]', className)}>{children}</div>
       </main>
     </>

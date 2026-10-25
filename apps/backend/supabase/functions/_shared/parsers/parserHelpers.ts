@@ -1,3 +1,7 @@
+import { Element } from 'deno-dom-wasm';
+
+import { findPostedDate } from './postedDate.ts';
+
 /**
  * Helper function to determine if a text likely represents salary information.
  * It checks for common currency symbols, keywords, and patterns that indicate salary.
@@ -23,11 +27,16 @@ export function isSalaryText(text: string): boolean {
 /**
  * Map over job card elements, but never let one malformed card break the whole page.
  * A card that throws while being parsed is skipped (treated as `null`).
+ * Also reads when each job was posted from its card, for every board, unless the parser set it already.
  */
 export function safeMapJobs<E, R>(elements: E[], parseOne: (el: E, index: number) => R | null): Array<R | null> {
   return elements.map((el, index) => {
     try {
-      return parseOne(el, index);
+      const job = parseOne(el, index);
+      if (job && typeof job === 'object' && !('postedAt' in job && job.postedAt) && el instanceof Element) {
+        (job as { postedAt?: string }).postedAt = findPostedDate(el);
+      }
+      return job;
     } catch (error) {
       console.error(`skipping malformed job card #${index}: ${error instanceof Error ? error.message : error}`);
       return null;

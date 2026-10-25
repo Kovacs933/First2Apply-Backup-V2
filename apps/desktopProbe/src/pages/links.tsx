@@ -115,6 +115,26 @@ export function LinksPage() {
     }
   };
 
+  // Search one saved search again right now
+  const [scanningLinkIds, setScanningLinkIds] = useState<Set<number>>(new Set());
+  const handleSearchAgain = async (linkId: number) => {
+    setScanningLinkIds((ids) => new Set(ids).add(linkId));
+    try {
+      await scanLink(linkId);
+      await reloadLinks();
+      setScanHealth(await getLinkScanHealth());
+      toast({ title: 'Search finished', description: 'Any new jobs are now on your Jobs page.' });
+    } catch (error) {
+      handleError({ error, title: "Couldn't search again" });
+    } finally {
+      setScanningLinkIds((ids) => {
+        const next = new Set(ids);
+        next.delete(linkId);
+        return next;
+      });
+    }
+  };
+
   const handleDebugLink = async (linkId: number) => {
     try {
       await browserWindowRef.current?.open(links.find((l) => l.id === linkId)?.url ?? throwError('Link not found'));
@@ -203,7 +223,7 @@ export function LinksPage() {
               </AlertDialogContent>
             </AlertDialog>
             <Button variant="outline" size="lg" className="px-6 text-base" disabled={isScanning} onClick={handleScanAll}>
-              {isScanning ? 'Scanning ...' : 'Scan now'}
+              {isScanning ? 'Searching ...' : 'Search all again'}
             </Button>
             <CreateLink />
           </div>
@@ -229,6 +249,8 @@ export function LinksPage() {
           onDeleteLink={handleDeleteLink}
           onDebugLink={handleDebugLink}
           onUpdateLink={handleUpdateLink}
+          onScanLink={handleSearchAgain}
+          scanningLinkIds={scanningLinkIds}
           scanHealth={scanHealth}
         />
       )}

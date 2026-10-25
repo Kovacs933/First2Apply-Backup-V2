@@ -8,24 +8,15 @@ export function HelpPage() {
       <h1 className="w-fit text-2xl font-medium tracking-wide">FAQs</h1>
 
       <Accordion type="single" collapsible className="w-full rounded-lg border px-6">
-        <AccordionItem value="item-1" className="py-2">
-          <AccordionTrigger className="text-lg font-normal hover:text-primary hover:no-underline">
-            Why is this a desktop app and not a website?
-          </AccordionTrigger>
-          <AccordionContent className="text-base font-light">
-            To maintain affordability for our users, the app is designed to utilize your device to refresh your saved
-            job searches. This method helps us avoid the higher costs associated with using our own servers for this
-            task.
-          </AccordionContent>
-        </AccordionItem>
-
         <AccordionItem value="item-2" className="py-2">
           <AccordionTrigger className="text-lg font-normal hover:text-primary hover:no-underline">
-            Does the app automatically apply to jobs for me?
+            Can the app apply to jobs for me?
           </AccordionTrigger>
           <AccordionContent className="text-base font-light">
-            No - the app does not apply to jobs on your behalf ... yet. We are planning to add this feature in the
-            future, but for now, the app is designed to help you find more job opportunities.
+            It does most of the work. Save the jobs you like, then open the <b>Saved</b> tab and click{' '}
+            <b>Apply to saved jobs</b>. Foundation opens each application in turn and fills in your name, email, phone
+            and location from the <b>CV Builder</b>. You check the form, attach your CV and press Submit yourself, so
+            nothing is ever sent without you seeing it. Then click <b>Applied, next job</b> to move on.
           </AccordionContent>
         </AccordionItem>
 
@@ -34,9 +25,9 @@ export function HelpPage() {
             Can it filter out jobs that I'm not interested in?
           </AccordionTrigger>
           <AccordionContent className="text-base font-light">
-            Yes! LinkedIn can sometimes show you jobs that are not relevant to your search (even with the filters you
-            set). With <b>Advanced Matching</b> the app allows you to filter out jobs based on keywords in job titles,
-            companies or even the job description.
+            Yes. On the <b>AI Filters</b> page, write in plain English what you don't want (for example "Hide jobs
+            paying less than £30,000"), and add any companies you never want to see. Foundation's AI checks every new
+            job against your rules and moves the ones that don't fit to the Filtered out tab.
           </AccordionContent>
         </AccordionItem>
 
@@ -53,7 +44,7 @@ export function HelpPage() {
 
         <AccordionItem value="item-5" className="py-2">
           <AccordionTrigger className="text-lg font-normal hover:text-primary hover:no-underline">
-            How will I see new job alerts when I'm not in front on my computer?
+            How will I see new job alerts when I'm not in front of my computer?
           </AccordionTrigger>
           <AccordionContent className="text-base font-light">
             The app is designed to send you email notifications for new found jobs. This way you can apply to jobs even
@@ -75,7 +66,7 @@ export function HelpPage() {
                 <b>Up/Down arrows</b>: navigate through job listings
               </li>
               <li>
-                <b>Cmd+a / Ctrl+a</b>: archive selected job
+                <b>Cmd+a / Ctrl+a</b>: save selected job for later
               </li>
               <li>
                 <b>Cmd+d / Ctrl+d</b>: delete selected job

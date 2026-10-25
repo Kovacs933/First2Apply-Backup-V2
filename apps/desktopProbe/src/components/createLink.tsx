@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useError } from '@/hooks/error';
 import { distanceInUrl, supportsDistance, withDistance } from '@/lib/boardSearchUrls';
 import { OverlayBrowserViewResult } from '@/lib/types';
-import { JobSite, Link, getExceptionMessage } from '@first2apply/core';
+import { JobSite, Link, SiteProvider, getExceptionMessage } from '@first2apply/core';
 import { useForm } from '@first2apply/ui';
 import { useSites } from '@first2apply/ui';
 import { useLinks } from '@first2apply/ui';
@@ -43,8 +43,9 @@ export function CreateLink() {
   // sort sites by name
   const sortedSites = sites
     .sort((a, b) => a.name.localeCompare(b.name))
-    // also filter out deprecated sites
-    .filter((site) => site.deprecated === false);
+    // also filter out deprecated sites, and the custom board (it has its own button)
+    .filter((site) => site.deprecated === false && site.provider !== SiteProvider.custom);
+  const customSite = sites.find((site) => site.provider === SiteProvider.custom && !site.deprecated);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
@@ -116,14 +117,30 @@ export function CreateLink() {
   // JSX for rendering the form
   return (
     <>
-      <Button variant="outline" size="lg" className="px-6 text-base" onClick={() => setIsSearchAllOpen(true)}>
+      <Button variant="default" size="lg" className="px-6 text-base" onClick={() => setIsSearchAllOpen(true)}>
         Search all UK boards
       </Button>
       <SearchAllBoards open={isSearchAllOpen} onOpenChange={setIsSearchAllOpen} />
 
+      {customSite && (
+        <Button
+          variant="outline"
+          size="lg"
+          className="bg-white px-6 text-base text-foreground dark:bg-white dark:text-black"
+          title="Search any other job board or company careers page"
+          onClick={() => onOpenSite(customSite)}
+        >
+          Custom job board
+        </Button>
+      )}
+
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="default" size="lg" className="px-10 text-base">
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-white px-10 text-base text-foreground dark:bg-white dark:text-black"
+          >
             Add Search
           </Button>
         </DialogTrigger>

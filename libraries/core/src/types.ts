@@ -94,6 +94,8 @@ export type Job = {
   tags: string[];
 
   description?: string;
+  // when the job board says the job was posted (ISO date), if it shows it
+  postedAt?: string | null;
 
   status: JobStatus;
   labels: JobLabel[];
@@ -104,6 +106,36 @@ export type Job = {
   link_id?: number;
 
   exclude_reason?: string;
+};
+
+/** What a candidate tells Foundation about themselves to build a CV. */
+export type CvProfile = {
+  fullName: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  linkedinUrl?: string;
+  summary?: string;
+  skills: string[];
+  experience: Array<{ title: string; employer: string; dates?: string; details?: string }>;
+  education: Array<{ qualification: string; place: string; dates?: string }>;
+};
+
+/** A finished CV, ready to lay out. */
+export type GeneratedCv = {
+  summary: string;
+  skills: string[];
+  experience: Array<{ title: string; employer: string; dates: string; bullets: string[] }>;
+  education: Array<{ qualification: string; place: string; dates: string }>;
+};
+
+export type GenerateCvParams = {
+  targetRole: string;
+  profile: CvProfile;
+  existingCv?: string;
+  employerSkills: Array<{ skill: string; jobCount: number }>;
+  jobsAnalysed: number;
+  sampleJobs: Array<{ title: string; companyName: string; description: string }>;
 };
 
 export type Review = {

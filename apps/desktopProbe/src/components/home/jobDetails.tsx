@@ -1,10 +1,55 @@
 import Markdown from 'react-markdown';
 
-import { Job } from '@first2apply/core';
+import { tidyDescription } from '@/lib/tidyDescription';
+import { Job, getRelativeTimeString } from '@first2apply/core';
 import { useSites } from '@first2apply/ui';
 import { Skeleton } from '@first2apply/ui';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+
+const isDateTag = (tag: string) => /\bago$|^(just )?posted\b|^today$|^yesterday$|^new$/i.test(tag.trim());
+
+/**
+ * The facts every job shows in the same order, so adverts from different boards are easy to compare.
+ */
+function KeyDetails({ job, siteName }: { job: Job; siteName?: string }) {
+  const closingTag = job.tags?.find((tag) => /^clos/i.test(tag));
+  // older jobs kept the board's "1 week ago" text as a tag; it isn't a contract type
+  const otherTags = (job.tags ?? []).filter((tag) => tag !== closingTag && !isDateTag(tag));
+  const rows: Array<[string, string | undefined]> = [
+    ['Salary', job.salary],
+    ['Location', job.location],
+    ['Work type', job.jobType ? job.jobType.charAt(0).toUpperCase() + job.jobType.slice(1) : undefined],
+    ['Contract', otherTags.slice(0, 3).join(', ') || undefined],
+    [
+      'Posted',
+      job.postedAt
+        ? `${getRelativeTimeString(new Date(job.postedAt))} (${new Date(job.postedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })})`
+        : undefined,
+    ],
+    ['Closes', closingTag?.replace(/^closes?:?\s*/i, '')],
+    ['Found by Foundation', getRelativeTimeString(new Date(job.created_at))],
+    ['Company', job.companyName],
+    ['Job board', siteName],
+  ];
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-3 text-lg font-semibold">Key details</h2>
+      {/* label above value, in as many columns as fit, so it reads well in a narrow panel too */}
+      <dl className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-x-6 gap-y-3 text-sm">
+        {rows
+          .filter(([, value]) => !!value)
+          .map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="font-medium">{value}</dd>
+            </div>
+          ))}
+      </dl>
+    </section>
+  );
+}
 
 /**
  * Job details component.
@@ -32,10 +77,14 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
       <Skeleton className="mb-3 h-4 w-5/6" />
     </div>
   ) : job.description ? (
-    // Description has been fetched
-    <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} className="job-description-md pl-[25px] pr-2">
-      {job.description}
-    </Markdown>
+    // Description has been fetched: the same layout for every job, key details first
+    <div className="pl-[25px] pr-2">
+      <KeyDetails job={job} siteName={site?.name} />
+      <h2 className="mb-3 mt-8 text-lg font-semibold">About the job</h2>
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} className="job-description-md">
+        {tidyDescription(job.description)}
+      </Markdown>
+    </div>
   ) : (
     // Description failed to fetch
     <div className="mt-20 text-center">
@@ -67,12 +116,12 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
         <path
           d="M140.09162,291.85056c0-78.36865,54.255-141.78356,121.30372-141.78356"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <path
           d="M70.77521,158.66768c0,73.61476,31.00285,133.18288,69.31641,133.18288"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <path
           d="M140.09162,291.85056c0-100.13772,62.7103-181.16788,140.20819-181.16788"
@@ -159,15 +208,15 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
         <rect x="87.60911" y="135" width="250" height="86" fill="#3f3d56" />
         <rect x="87.60911" y="237" width="250" height="86" fill="#3f3d56" />
         <rect x="87.60911" y="339" width="250" height="86" fill="#3f3d56" />
-        <rect x="271.60911" y="150" width="16" height="16" fill="#809966" opacity="0.4" />
-        <rect x="294.60911" y="150" width="16" height="16" fill="#809966" opacity="0.8" />
-        <rect x="317.60911" y="150" width="16" height="16" fill="#809966" />
-        <rect x="271.60911" y="251" width="16" height="16" fill="#809966" opacity="0.4" />
-        <rect x="294.60911" y="251" width="16" height="16" fill="#809966" opacity="0.8" />
-        <rect x="317.60911" y="251" width="16" height="16" fill="#809966" />
-        <rect x="271.60911" y="352" width="16" height="16" fill="#809966" opacity="0.4" />
-        <rect x="294.60911" y="352" width="16" height="16" fill="#809966" opacity="0.8" />
-        <rect x="317.60911" y="352" width="16" height="16" fill="#809966" />
+        <rect x="271.60911" y="150" width="16" height="16" fill="#E8A55A" opacity="0.4" />
+        <rect x="294.60911" y="150" width="16" height="16" fill="#E8A55A" opacity="0.8" />
+        <rect x="317.60911" y="150" width="16" height="16" fill="#E8A55A" />
+        <rect x="271.60911" y="251" width="16" height="16" fill="#E8A55A" opacity="0.4" />
+        <rect x="294.60911" y="251" width="16" height="16" fill="#E8A55A" opacity="0.8" />
+        <rect x="317.60911" y="251" width="16" height="16" fill="#E8A55A" />
+        <rect x="271.60911" y="352" width="16" height="16" fill="#E8A55A" opacity="0.4" />
+        <rect x="294.60911" y="352" width="16" height="16" fill="#E8A55A" opacity="0.8" />
+        <rect x="317.60911" y="352" width="16" height="16" fill="#E8A55A" />
         <circle cx="316.60911" cy="538" r="79" fill="#2f2e41" />
         <rect x="280.60911" y="600" width="24" height="43" fill="#2f2e41" />
         <rect x="328.60911" y="600" width="24" height="43" fill="#2f2e41" />
@@ -178,7 +227,7 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
         <path
           d="M271.36733,565.03228c-6.37889-28.56758,14.01185-57.43392,45.544-64.47477s62.2651,10.41,68.644,38.9776-14.51861,39.10379-46.05075,46.14464S277.74622,593.59986,271.36733,565.03228Z"
           transform="translate(-31.39089 -100.5)"
-          fill="#809966"
+          fill="#E8A55A"
         />
         <ellipse
           cx="417.21511"
@@ -218,8 +267,8 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
             fill="#222222"
           />
           <path d="M0 51.1426C0 128.64 48.6181 191.351 108.701 191.351Z" fill="#717171" />
-          <path d="M108.701 191.35C108.701 112.982 162.956 49.5669 230.004 49.5669Z" fill="#809966" />
-          <path d="M39.3843 58.1675C39.3843 131.782 70.3872 191.35 108.701 191.35Z" fill="#809966" />
+          <path d="M108.701 191.35C108.701 112.982 162.956 49.5669 230.004 49.5669Z" fill="#E8A55A" />
+          <path d="M39.3843 58.1675C39.3843 131.782 70.3872 191.35 108.701 191.35Z" fill="#E8A55A" />
           <path d="M108.701 191.35C108.701 91.2128 171.411 10.1826 248.909 10.1826Z" fill="#717171" />
           <path
             d="M85.8329 192.339C85.8329 192.339 101.248 191.864 105.894 188.556C110.54 185.248 129.607 181.298 130.76 186.603C131.912 191.909 153.927 212.991 136.522 213.132C119.118 213.272 96.0831 210.421 91.4462 207.596C86.8093 204.772 85.8329 192.339 85.8329 192.339Z"
@@ -313,15 +362,15 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
           <path d="M337.609 135H87.6091V221H337.609V135Z" fill="#CCCCCC" />
           <path d="M337.609 237H87.6091V323H337.609V237Z" fill="#CCCCCC" />
           <path d="M337.609 339H87.6091V425H337.609V339Z" fill="#CCCCCC" />
-          <path opacity="0.4" d="M287.609 150H271.609V166H287.609V150Z" fill="#809966" />
-          <path opacity="0.8" d="M310.609 150H294.609V166H310.609V150Z" fill="#809966" />
-          <path d="M333.609 150H317.609V166H333.609V150Z" fill="#809966" />
-          <path opacity="0.4" d="M287.609 251H271.609V267H287.609V251Z" fill="#809966" />
-          <path opacity="0.8" d="M310.609 251H294.609V267H310.609V251Z" fill="#809966" />
-          <path d="M333.609 251H317.609V267H333.609V251Z" fill="#809966" />
-          <path opacity="0.4" d="M287.609 352H271.609V368H287.609V352Z" fill="#809966" />
-          <path opacity="0.8" d="M310.609 352H294.609V368H310.609V352Z" fill="#809966" />
-          <path d="M333.609 352H317.609V368H333.609V352Z" fill="#809966" />
+          <path opacity="0.4" d="M287.609 150H271.609V166H287.609V150Z" fill="#E8A55A" />
+          <path opacity="0.8" d="M310.609 150H294.609V166H310.609V150Z" fill="#E8A55A" />
+          <path d="M333.609 150H317.609V166H333.609V150Z" fill="#E8A55A" />
+          <path opacity="0.4" d="M287.609 251H271.609V267H287.609V251Z" fill="#E8A55A" />
+          <path opacity="0.8" d="M310.609 251H294.609V267H310.609V251Z" fill="#E8A55A" />
+          <path d="M333.609 251H317.609V267H333.609V251Z" fill="#E8A55A" />
+          <path opacity="0.4" d="M287.609 352H271.609V368H287.609V352Z" fill="#E8A55A" />
+          <path opacity="0.8" d="M310.609 352H294.609V368H310.609V352Z" fill="#E8A55A" />
+          <path d="M333.609 352H317.609V368H333.609V352Z" fill="#E8A55A" />
           <path
             d="M316.609 617C360.24 617 395.609 581.63 395.609 538C395.609 494.37 360.24 459 316.609 459C272.979 459 237.609 494.37 237.609 538C237.609 581.63 272.979 617 316.609 617Z"
             fill="#717171"
@@ -346,7 +395,7 @@ export function JobDetails({ job, isScrapingDescription }: { job: Job; isScrapin
           />
           <path
             d="M239.976 464.532C233.598 435.965 253.988 407.098 285.52 400.057C317.053 393.017 347.786 410.467 354.164 439.035C360.543 467.603 339.646 478.139 308.114 485.18C276.582 492.221 246.355 493.1 239.976 464.532Z"
-            fill="#809966"
+            fill="#E8A55A"
           />
           <path
             d="M390.704 522.244C410.759 513.66 424.833 501.597 422.138 495.301C419.443 489.005 401.001 490.86 380.945 499.444C360.89 508.028 346.816 520.09 349.511 526.386C352.205 532.682 370.648 530.828 390.704 522.244Z"

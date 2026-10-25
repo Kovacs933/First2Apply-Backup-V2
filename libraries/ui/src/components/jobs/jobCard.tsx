@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip"
 import { Button } from "../ui/button"
-import { ArchiveIcon, TrashIcon } from "lucide-react"
+import { BookmarkIcon, TrashIcon } from "lucide-react"
 import { LABEL_COLOR_CLASSES } from "../../lib/labels"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 
@@ -47,12 +47,12 @@ export function JobCard({
                       evt.stopPropagation()
                     }}
                   >
-                    <ArchiveIcon className="p-1 text-foreground" />
+                    <BookmarkIcon className="p-1 text-foreground" />
                   </Button>
                 </TooltipTrigger>
 
                 <TooltipContent side="bottom" className="text-base">
-                  Archive
+                  Save for later
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -114,7 +114,10 @@ export function JobCard({
               <span>{job.salary}</span>
             </>
           )}
-          {job.tags?.map((tag) => (
+          {/* older jobs kept the board's "1 week ago" text as a tag; the date is shown below instead */}
+          {job.tags
+            ?.filter((tag) => !/\bago$|^(just )?posted\b|^today$|^yesterday$/i.test(tag.trim()))
+            .map((tag) => (
             <span key={job.id + tag}>
               {(job.location || job.jobType || job.salary) && (
                 <span className="text-3 mx-2 font-light text-foreground/40">
@@ -151,14 +154,16 @@ export function JobCard({
         </p>
 
         {/* Timestamp */}
+        {/* when the board says it was posted, or else when Foundation found it */}
         <p
           className="ml-auto w-fit shrink-0 text-xs font-medium text-foreground/80"
-          title={new Date(job.created_at).toLocaleString("en-GB", {
+          title={new Date(job.postedAt ?? job.created_at).toLocaleString("en-GB", {
             dateStyle: "full",
-            timeStyle: "short",
+            timeStyle: job.postedAt ? undefined : "short",
           })}
         >
-          Found {getRelativeTimeString(new Date(job.created_at))}
+          {job.postedAt ? "Posted" : "Found"}{" "}
+          {getRelativeTimeString(new Date(job.postedAt ?? job.created_at))}
         </p>
       </div>
     </>

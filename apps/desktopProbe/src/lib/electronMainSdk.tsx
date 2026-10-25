@@ -1,6 +1,8 @@
 import {
   AdvancedMatchingConfig,
   First2ApplyApiSdk,
+  GenerateCvParams,
+  GeneratedCv,
   Job,
   JobLabel,
   JobSite,
@@ -310,6 +312,28 @@ export async function exportJobsToCsv(status: JobStatus): Promise<void> {
 }
 
 /**
+ * Write a CV for the target role with AI.
+ */
+export async function generateCv(params: GenerateCvParams): Promise<GeneratedCv> {
+  return await _mainProcessApiCall('generate-cv', { params });
+}
+
+/**
+ * The user's recent jobs with descriptions, used by the CV builder to see what employers ask for.
+ */
+export async function listJobsWithDescriptions(): Promise<CvSourceJob[]> {
+  return await _mainProcessApiCall('list-jobs-with-descriptions', {});
+}
+export type CvSourceJob = Pick<Job, 'id' | 'title' | 'companyName' | 'description' | 'tags'>;
+
+/**
+ * Save a CV (as a full HTML page) to a PDF file the user picks.
+ */
+export async function saveCvPdf({ html, fileName }: { html: string; fileName: string }): Promise<{ saved: boolean }> {
+  return await _mainProcessApiCall('save-cv-pdf', { html, fileName });
+}
+
+/**
  * Change the status of all jobs from one status to another.
  */
 export async function changeAllJobsStatus({ from, to }: { from: JobStatus; to: JobStatus }): Promise<void> {
@@ -497,6 +521,36 @@ export async function overlayBrowserViewGoForward(): Promise<void> {
  */
 export async function overlayBrowserViewNavigate(url: string): Promise<void> {
   await _mainProcessApiCall('overlay-browser-view-navigate', { url });
+}
+
+export type AutofillDetails = { fullName: string; email: string; phone: string; location: string; linkedinUrl: string };
+
+/**
+ * Apply assistant: fill these details into application forms opened in the in-app browser (null turns it off).
+ */
+export async function setOverlayBrowserAutofill(details: AutofillDetails | null): Promise<void> {
+  await _mainProcessApiCall('overlay-browser-set-autofill', { details });
+}
+
+/**
+ * Fill the details into the page open in the in-app browser now. Returns how many boxes were filled.
+ */
+export async function overlayBrowserAutofillNow(): Promise<{ filled: number }> {
+  return await _mainProcessApiCall('overlay-browser-autofill-now', {});
+}
+
+/**
+ * The visible text of the page open in the in-app browser.
+ */
+export async function overlayBrowserPageText(): Promise<{ url: string; title: string; text: string }> {
+  return await _mainProcessApiCall('overlay-browser-page-text', {});
+}
+
+/**
+ * Let the user pick their CV (PDF, Word or text) and return its text, or null if they cancelled.
+ */
+export async function readCvFile(): Promise<{ fileName: string; text: string } | null> {
+  return await _mainProcessApiCall('read-cv-file', {});
 }
 
 /**
