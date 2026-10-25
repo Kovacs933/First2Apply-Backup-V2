@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { JobTabs } from '@/components/home/jobTabs';
 import { Icons } from '@/components/icons';
 import { JobsListSkeleton } from '@/components/home/jobsSkeleton';
+import { SearchAllBoardsForm } from '@/components/searchAllBoards';
 import { useLinks } from '@first2apply/ui';
-import { Button } from '@first2apply/ui';
 import { Skeleton } from '@first2apply/ui';
 
 import { DefaultLayout } from './defaultLayout';
@@ -50,25 +50,36 @@ function Loading() {
 }
 
 /**
- * User has no links component.
+ * First-run setup, shown until the user has a search: one job title, town and distance becomes a search on every
+ * UK board. Once the searches are saved the Jobs list replaces this screen.
  */
 function NoLinks() {
   return (
-    <DefaultLayout className={`flex h-screen w-full max-w-[800px] flex-col justify-evenly pb-14 md:px-10 lg:px-20`}>
-      <div className="flex flex-col items-center gap-10">
+    <DefaultLayout className="flex w-full max-w-[860px] flex-col gap-8 px-6 py-10 md:px-10">
+      <div className="flex flex-col items-center gap-4 text-center">
         {/* the Foundation logo and name in its gold and navy */}
-        <h1 className="flex items-center gap-4 text-3xl font-semibold text-[#1F3A5F] dark:text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
-          <Icons.logo className="h-12 w-12 md:h-16 md:w-16" aria-hidden="true" />
+        <h1 className="flex items-center gap-4 text-3xl font-semibold text-[#1F3A5F] dark:text-foreground sm:text-4xl md:text-5xl">
+          <Icons.logo className="h-12 w-12 md:h-14 md:w-14" aria-hidden="true" />
           Foundation
         </h1>
-        <p className="text-center text-muted-foreground">
-          Save your tailored job searches from top job platforms, and let us do the heavy lifting. We'll monitor your
-          specified job feeds and swiftly notify you of new postings, providing you the edge to be the first in line.
+        <p className="max-w-xl text-muted-foreground">
+          Tell Foundation the job you want and where. It saves the search on every UK job board and checks them all
+          for new jobs, so you don't have to.
         </p>
-        <Link to="/links">
-          <Button>Add new search</Button>
-        </Link>
       </div>
+
+      <section className="rounded-lg border border-border bg-card p-6">
+        <h2 className="mb-1 text-xl font-medium">Set up your job search</h2>
+        <p className="mb-4 text-sm text-muted-foreground">You can add more searches or change these any time.</p>
+        <SearchAllBoardsForm />
+      </section>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Want one particular board or a company's own careers page?{' '}
+        <Link to="/links" className="text-primary underline hover:no-underline">
+          Add a single search
+        </Link>
+      </p>
     </DefaultLayout>
   );
 }
