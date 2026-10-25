@@ -1,5 +1,5 @@
 import {
-  AdvancedMatchingConfig,
+  AiFilterConfig,
   First2ApplyApiSdk,
   GenerateCvParams,
   GeneratedCv,
@@ -418,20 +418,20 @@ export async function deleteNote(noteId: number): Promise<void> {
 }
 
 /**
- * Get the advanced matching configuration for the current user.
+ * Get the AI filters configuration for the current user.
  */
-export async function getAdvancedMatchingConfig(): Promise<AdvancedMatchingConfig | null> {
-  return await _mainProcessApiCall('get-advanced-matching-config', {});
+export async function getAiFilterConfig(): Promise<AiFilterConfig | null> {
+  return await _mainProcessApiCall('get-ai-filter-config', {});
 }
 
 /**
- * Update the advanced matching configuration for the current user.
+ * Update the AI filters configuration for the current user.
  */
-export async function updateAdvancedMatchingConfig(
-  config: Pick<AdvancedMatchingConfig, 'chatgpt_prompt' | 'blacklisted_companies'> &
-    Partial<Pick<AdvancedMatchingConfig, 'uk_only' | 'location_center' | 'location_radius_miles'>>,
+export async function updateAiFilterConfig(
+  config: Pick<AiFilterConfig, 'chatgpt_prompt' | 'blacklisted_companies'> &
+    Partial<Pick<AiFilterConfig, 'uk_only' | 'location_center' | 'location_radius_miles'>>,
 ) {
-  return await _mainProcessApiCall<AdvancedMatchingConfig>('update-advanced-matching-config', {
+  return await _mainProcessApiCall<AiFilterConfig>('update-ai-filter-config', {
     config,
   });
 }
@@ -607,9 +607,9 @@ export class ElectronApiSdk implements First2ApplyApiSdk {
   getUserReview = getUserReview;
   updateReview = updateReview;
 
-  // Advanced Matching
-  getAdvancedMatchingConfig = getAdvancedMatchingConfig;
-  updateAdvancedMatchingConfig = updateAdvancedMatchingConfig;
+  // AI Filters
+  getAiFilterConfig = getAiFilterConfig;
+  updateAiFilterConfig = updateAiFilterConfig;
 }
 
 /** Singleton instance of the Electron API SDK */

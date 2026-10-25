@@ -1,4 +1,4 @@
-import { AdvancedMatchingConfig } from '@first2apply/core';
+import { AiFilterConfig } from '@first2apply/core';
 
 /**
  * Location filter (no AI): hides jobs outside the UK, and jobs further than the user's chosen distance from
@@ -113,7 +113,7 @@ export async function checkJobLocation({
 }: {
   location?: string | null;
   jobType?: string | null;
-  config: Pick<AdvancedMatchingConfig, 'uk_only' | 'location_center' | 'location_radius_miles'>;
+  config: Pick<AiFilterConfig, 'uk_only' | 'location_center' | 'location_radius_miles'>;
   fetchFn?: Fetch;
 }): Promise<{ excluded: boolean; reason?: string }> {
   const radius = config.location_radius_miles ?? null;

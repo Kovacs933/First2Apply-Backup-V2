@@ -44,7 +44,21 @@ export async function extractCvText(filePath: string): Promise<string> {
     return text;
   }
 
-  return tidy(data.toString('utf8'));
+  if (extension === '.txt' || extension === '') return tidy(data.toString('utf8'));
+
+  // formats Foundation can't read: say how to get a version it can
+  if (extension === '.doc' || extension === '.rtf' || extension === '.odt') {
+    throw new Error(
+      'This is an older Word or other document format. Open it in Word (or Google Docs), choose Save As (or Download) as a Word document (.docx) or PDF, then upload that.',
+    );
+  }
+  if (extension === '.pages') {
+    throw new Error('Pages files can\'t be read. In Pages choose File > Export To > PDF or Word, then upload that.');
+  }
+  if (['.jpg', '.jpeg', '.png', '.heic', '.gif', '.bmp', '.webp'].includes(extension)) {
+    throw new Error("This is a picture of a CV, which can't be read. Upload the PDF or Word version of your CV instead.");
+  }
+  throw new Error('Upload your CV as a PDF, Word (.docx) or text file.');
 }
 
 const tidy = (text: string) =>

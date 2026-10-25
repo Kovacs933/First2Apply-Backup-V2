@@ -302,11 +302,11 @@ export function initRendererIpcApi({
     return res;
   });
 
-  ipcMain.handle('get-advanced-matching-config', async () => _apiCall(() => supabaseApi.getAdvancedMatchingConfig()));
+  ipcMain.handle('get-ai-filter-config', async () => _apiCall(() => supabaseApi.getAiFilterConfig()));
 
-  ipcMain.handle('update-advanced-matching-config', async (event, { config }) => {
-    const res = _apiCall(() => supabaseApi.updateAdvancedMatchingConfig(config));
-    analytics.trackEvent('advanced_matching_config_updated', { config: JSON.stringify(config) });
+  ipcMain.handle('update-ai-filter-config', async (event, { config }) => {
+    const res = _apiCall(() => supabaseApi.updateAiFilterConfig(config));
+    analytics.trackEvent('ai_filters_config_updated', { config: JSON.stringify(config) });
     return res;
   });
 
@@ -363,7 +363,11 @@ export function initRendererIpcApi({
     _apiCall(async () => {
       const res = await dialog.showOpenDialog({
         properties: ['openFile'],
-        filters: [{ name: 'CV', extensions: ['pdf', 'docx', 'txt'] }],
+        // "All files" too, so a CV in another format still shows and gets a clear message instead of being invisible
+        filters: [
+          { name: 'CV', extensions: ['pdf', 'docx', 'doc', 'txt', 'rtf', 'odt', 'pages'] },
+          { name: 'All files', extensions: ['*'] },
+        ],
       });
       if (res.canceled || !res.filePaths[0]) return null;
       return { fileName: path.basename(res.filePaths[0]), text: await extractCvText(res.filePaths[0]) };

@@ -8,6 +8,7 @@ import {
   EmployerSkill,
   buildTemplateCv,
   candidateHasSkill,
+  findCvImprovements,
   cvDataStrength,
   findEmployerSkills,
   isChosenJob,
@@ -50,6 +51,8 @@ export function CvPage() {
   const mode: CvBuilderState['mode'] = AI_WRITING_AVAILABLE ? state.mode : 'template';
   const update = (changes: Partial<SavedState>) => setState((current) => ({ ...current, ...changes }));
   const updateProfile = (changes: Partial<CvProfile>) => update({ profile: { ...profile, ...changes } });
+  const qualifications = profile.qualifications ?? [];
+  const volunteering = profile.volunteering ?? [];
 
   const [skillsText, setSkillsText] = useState(profile.skills.join(', '));
   const [foundJobs, setFoundJobs] = useState<CvSourceJob[]>([]);
@@ -87,16 +90,29 @@ export function CvPage() {
     // jobs and qualifications from the CV are added after the ones already typed (empty rows are replaced),
     // skipping any that are already there
     const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-    const typedJobs = profile.experience.filter((e) => e.title.trim() || e.employer.trim());
-    const newJobs = (found.experience ?? []).filter(
-      (e) => !typedJobs.some((t) => same(t.title, e.title) && same(t.employer, e.employer)),
+    const sameRole = (a: { title: string; employer: string }, b: { title: string; employer: string }) =>
+      same(a.title, b.title) && same(a.employer, b.employer);
+    const foundVolunteering = found.volunteering ?? [];
+    // a volunteer role saved under Work experience before Volunteering had its own section moves across
+    const typedJobs = profile.experience.filter(
+      (e) => (e.title.trim() || e.employer.trim()) && !foundVolunteering.some((v) => sameRole(v, e)),
     );
-    if (newJobs.length) filled.experience = [...typedJobs, ...newJobs];
+    const newJobs = (found.experience ?? []).filter((e) => !typedJobs.some((t) => sameRole(t, e)));
+    const movedToVolunteering = profile.experience.some((e) => foundVolunteering.some((v) => sameRole(v, e)));
+    if (newJobs.length || movedToVolunteering) filled.experience = [...typedJobs, ...newJobs];
+    const typedVolunteering = volunteering.filter((v) => v.title.trim() || v.employer.trim());
+    const newVolunteering = foundVolunteering.filter((v) => !typedVolunteering.some((t) => sameRole(t, v)));
+    if (newVolunteering.length) filled.volunteering = [...typedVolunteering, ...newVolunteering];
     const typedEducation = profile.education.filter((e) => e.qualification.trim() || e.place.trim());
     const newEducation = (found.education ?? []).filter(
       (e) => !typedEducation.some((t) => same(t.qualification, e.qualification) && same(t.place, e.place)),
     );
     if (newEducation.length) filled.education = [...typedEducation, ...newEducation];
+    const typedQualifications = (profile.qualifications ?? []).filter((q) => q.qualification.trim() || q.place.trim());
+    const newQualifications = (found.qualifications ?? []).filter(
+      (q) => !typedQualifications.some((t) => same(t.qualification, q.qualification) && same(t.place, q.place)),
+    );
+    if (newQualifications.length) filled.qualifications = [...typedQualifications, ...newQualifications];
     if (found.skills?.length && profile.skills.length === 0) {
       filled.skills = found.skills;
       setSkillsText(found.skills.join(', '));
@@ -115,14 +131,27 @@ export function CvPage() {
     });
   };
 
+  // the uploaded CV's text as it sits in existingCv, so removing the file takes it out again
+  const uploadedBlock = (cv: { fileName: string; text: string }) => `Your CV (${cv.fileName}):\n${cv.text}`;
+  const withoutUploadedCv = (current: SavedState) =>
+    current.uploadedCv ? current.existingCv.replace(uploadedBlock(current.uploadedCv), '').trim() : current.existingCv;
+
   const onUploadCv = async () => {
     try {
       const file = await readCvFile();
-      if (file) importText(file.text, `Your CV (${file.fileName})`);
+      if (!file) return;
+      // a new upload replaces the previous file
+      setState((current) => ({ ...current, existingCv: withoutUploadedCv(current), uploadedCv: undefined }));
+      importText(file.text, `Your CV (${file.fileName})`);
+      setState((current) => ({ ...current, uploadedCv: { fileName: file.fileName, text: file.text } }));
     } catch (error) {
       handleError({ error, title: "Couldn't read your CV" });
     }
   };
+
+  // removes the file and its text; details already filled in below stay, since the candidate may have edited them
+  const onRemoveCv = () =>
+    setState((current) => ({ ...current, existingCv: withoutUploadedCv(current), uploadedCv: undefined }));
 
   // LinkedIn: open the profile in the in-app browser (signed in there), then read the page
   const linkedinBrowserRef = useRef<BrowserWindowHandle>(null);
@@ -163,6 +192,7 @@ export function CvPage() {
   const employerSkills = useMemo<EmployerSkill[]>(() => findEmployerSkills(roleJobs), [roleJobs]);
   const savedRoleJobs = roleJobs.filter(isChosenJob).length;
   const strength = useMemo(() => cvDataStrength(roleJobs), [roleJobs]);
+  const improvements = useMemo(() => findCvImprovements(roleJobs, profile), [roleJobs, profile]);
 
   const setSkills = (text: string) => {
     setSkillsText(text);
@@ -351,6 +381,20 @@ export function CvPage() {
           Upload your current CV
         </Button>
         <p className="mt-2 text-xs text-muted-foreground">CVs can be PDF, Word (.docx) or text.</p>
+        {state.uploadedCv && (
+          <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-md border border-border bg-background py-1.5 pl-3 pr-1.5 text-sm">
+            <span className="truncate">{state.uploadedCv.fileName}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${state.uploadedCv.fileName}`}
+              title="Remove this CV"
+              onClick={onRemoveCv}
+              className="shrink-0 rounded p-0.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              <Cross2Icon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </section>
 
       <BrowserWindow
@@ -369,7 +413,7 @@ export function CvPage() {
         <h2 className="text-lg font-medium">1. What job do you want?</h2>
         <Input
           value={targetRole}
-          placeholder="e.g. Data Analyst"
+          placeholder="Data Analyst"
           onChange={(e) => update({ targetRole: e.target.value })}
           className="max-w-xl bg-card text-base"
         />
@@ -440,6 +484,38 @@ export function CvPage() {
             )}
           </div>
         )}
+
+        {/* what the candidate doesn't have yet: suggestions only, never added to the CV */}
+        {targetRole.trim() && !isLoadingJobs && roleJobs.length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="text-base font-medium">What would strengthen your CV</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Qualifications, checks and skills these adverts ask for that aren't in your details yet. They're not added
+              to your CV: they're worth working towards, or adding below if you already have them.
+            </p>
+            {improvements.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Your details already cover what these adverts ask for most.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-border">
+                {improvements.map(({ name, kind, jobCount, savedCount, essentialCount }) => (
+                  <li key={name} className="flex items-center justify-between gap-4 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        In {jobCount} of {roleJobs.length} adverts
+                        {savedCount > 0 && ` · ${savedCount} you saved`}
+                        {essentialCount > 0 && ` · in ${essentialCount} person ${essentialCount === 1 ? 'spec' : 'specs'}`}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm text-muted-foreground">{kind}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       {/* 2. the candidate's details */}
@@ -452,7 +528,7 @@ export function CvPage() {
           <Field
             label="Town or city"
             value={profile.location ?? ''}
-            placeholder="e.g. Leeds"
+            placeholder="Leeds"
             onChange={(v) => updateProfile({ location: v })}
           />
           <Field
@@ -477,7 +553,7 @@ export function CvPage() {
           <Label>Skills</Label>
           <Textarea
             value={skillsText}
-            placeholder="Separate with commas, e.g. Excel, customer service, SQL"
+            placeholder="Separate with commas: Excel, customer service, SQL"
             onChange={(e) => setSkills(e.target.value)}
             className="bg-card"
           />
@@ -496,7 +572,7 @@ export function CvPage() {
                 <Field
                   label="Dates"
                   value={job.dates ?? ''}
-                  placeholder="e.g. Mar 2022 - present"
+                  placeholder="Mar 2022 - present"
                   onChange={(v) => setItem('experience', index, { dates: v })}
                 />
               </div>
@@ -504,7 +580,7 @@ export function CvPage() {
                 <Label>What you did</Label>
                 <Textarea
                   value={job.details ?? ''}
-                  placeholder={'One thing per line, e.g.\nHandled 50+ customer queries a day\nTrained 3 new team members'}
+                  placeholder={'One thing per line:\nHandled 50+ customer queries a day\nTrained 3 new team members'}
                   onChange={(e) => setItem('experience', index, { details: e.target.value })}
                   className="min-h-[90px]"
                 />
@@ -523,7 +599,7 @@ export function CvPage() {
         </div>
 
         <div className="space-y-3">
-          <Label>Education and qualifications</Label>
+          <Label>Education</Label>
           {profile.education.map((ed, index) => (
             <div key={index} className="relative grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
               <RemoveButton
@@ -532,7 +608,7 @@ export function CvPage() {
               <Field
                 label="Qualification"
                 value={ed.qualification}
-                placeholder="e.g. BSc Economics, 2:1"
+                placeholder="BSc Economics, 2:1"
                 onChange={(v) => setItem('education', index, { qualification: v })}
               />
               <Field
@@ -548,7 +624,72 @@ export function CvPage() {
             size="sm"
             onClick={() => updateProfile({ education: [...profile.education, { qualification: '', place: '', dates: '' }] })}
           >
+            <PlusIcon className="mr-1 h-4 w-4" /> Add education
+          </Button>
+        </div>
+
+        {/* training courses and certificates, kept apart from school and university */}
+        <div className="space-y-3">
+          <Label>Qualifications</Label>
+          {qualifications.map((q, index) => (
+            <div key={index} className="relative grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
+              <RemoveButton
+                onClick={() => updateProfile({ qualifications: qualifications.filter((_, i) => i !== index) })}
+              />
+              <Field
+                label="Qualification"
+                value={q.qualification}
+                placeholder="The Care Certificate"
+                onChange={(v) => setQualification(index, { qualification: v })}
+              />
+              <Field
+                label="Provider"
+                value={q.place}
+                placeholder="Voyage Care"
+                onChange={(v) => setQualification(index, { place: v })}
+              />
+              <Field label="Dates" value={q.dates ?? ''} onChange={(v) => setQualification(index, { dates: v })} />
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => updateProfile({ qualifications: [...qualifications, { qualification: '', place: '', dates: '' }] })}
+          >
             <PlusIcon className="mr-1 h-4 w-4" /> Add a qualification
+          </Button>
+        </div>
+
+        {/* unpaid roles, kept apart from paid work */}
+        <div className="space-y-3">
+          <Label>Volunteering</Label>
+          {volunteering.map((role, index) => (
+            <div key={index} className="relative space-y-3 rounded-lg border border-border bg-card p-4">
+              <RemoveButton onClick={() => updateProfile({ volunteering: volunteering.filter((_, i) => i !== index) })} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Role" value={role.title} onChange={(v) => setVolunteering(index, { title: v })} />
+                <Field label="Organisation" value={role.employer} onChange={(v) => setVolunteering(index, { employer: v })} />
+                <Field label="Dates" value={role.dates ?? ''} onChange={(v) => setVolunteering(index, { dates: v })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>What you did</Label>
+                <Textarea
+                  value={role.details ?? ''}
+                  placeholder="One thing per line"
+                  onChange={(e) => setVolunteering(index, { details: e.target.value })}
+                  className="min-h-[90px]"
+                />
+              </div>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              updateProfile({ volunteering: [...volunteering, { title: '', employer: '', dates: '', details: '' }] })
+            }
+          >
+            <PlusIcon className="mr-1 h-4 w-4" /> Add volunteering
           </Button>
         </div>
       </section>
@@ -632,6 +773,14 @@ export function CvPage() {
       )}
     </DefaultLayout>
   );
+
+  function setQualification(index: number, changes: Partial<NonNullable<CvProfile['qualifications']>[number]>) {
+    updateProfile({ qualifications: qualifications.map((q, i) => (i === index ? { ...q, ...changes } : q)) });
+  }
+
+  function setVolunteering(index: number, changes: Partial<NonNullable<CvProfile['volunteering']>[number]>) {
+    updateProfile({ volunteering: volunteering.map((v, i) => (i === index ? { ...v, ...changes } : v)) });
+  }
 
   function setItem<K extends 'experience' | 'education'>(
     key: K,

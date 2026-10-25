@@ -100,7 +100,8 @@ const SKILLS: Array<{ skill: string; pattern: RegExp }> = [
   { skill: 'NMC registration', pattern: /\bNMC\b/ },
   { skill: 'HCPC registration', pattern: /\bHCPC\b/ },
   { skill: 'Care Certificate', pattern: /\bcare certificate\b/i },
-  { skill: 'First aid', pattern: /\bfirst aid\b/i },
+  // not "Mental Health First Aid", which is its own qualification
+  { skill: 'First aid', pattern: /(?<!mental health )\bfirst aid\b/i },
   { skill: 'Medication administration', pattern: /\bmedication\b/i },
   { skill: 'QTS (teaching)', pattern: /\bQTS\b|\bqualified teacher status\b/i },
   { skill: 'SEN support', pattern: /\bSEN(D|CO)?\b|\bspecial educational needs\b/i },
@@ -123,7 +124,8 @@ const roleWords = (role: string) =>
 
 /**
  * The found jobs that match the role the candidate wants (all its words in the title, else any of them),
- * with the jobs they saved or applied to first.
+ * with the jobs they saved or applied to first. Saved jobs also count when the role is only in the advert
+ * ("Employment Advisor" adverts that talk about job coaching): the candidate saved them, so they're relevant.
  */
 export function jobsForRole<T extends SourceJob>(jobs: T[], targetRole: string): T[] {
   const words = roleWords(targetRole);
@@ -131,7 +133,93 @@ export function jobsForRole<T extends SourceJob>(jobs: T[], targetRole: string):
   const title = (job: T) => job.title.toLowerCase();
   let matching = jobs.filter((job) => words.every((w) => title(job).includes(w)));
   if (matching.length === 0) matching = jobs.filter((job) => words.some((w) => title(job).includes(w)));
-  return [...matching.filter(isChosenJob), ...matching.filter((job) => !isChosenJob(job))];
+  const savedRelated = jobs.filter(
+    (job) =>
+      isChosenJob(job) &&
+      !matching.includes(job) &&
+      words.some((w) => title(job).includes(w) || (job.description ?? '').toLowerCase().includes(w)),
+  );
+  return [...matching.filter(isChosenJob), ...savedRelated, ...matching.filter((job) => !isChosenJob(job))];
+}
+
+/**
+ * Qualifications and training UK employers ask for, counted in the adverts like SKILLS, to show the candidate
+ * what would strengthen their CV. Checks and licences (DBS, driving licence, ...) come from SKILLS.
+ */
+const QUALIFICATIONS: Array<{ name: string; pattern: RegExp }> = [
+  { name: 'Degree', pattern: /\b(degree|graduate)\b/i },
+  { name: 'GCSE (or equivalent) English and maths', pattern: /\bGCSEs?\b|functional skills|level 2 (english|maths)/i },
+  { name: 'Level 2 in Health and Social Care', pattern: /level 2[^.\n]{0,40}(health and social care|adult care|care)/i },
+  {
+    name: 'Level 3 Diploma in Health and Social Care',
+    pattern: /level 3[^.\n]{0,40}(health and social care|adult care)|\bNVQ\b[^.\n]{0,15}3[^.\n]{0,30}care/i,
+  },
+  { name: 'Information, Advice and Guidance (IAG) qualification', pattern: /\bIAG\b|information,? advice,? (and|&) guidance/i },
+  { name: 'Careers guidance qualification (QCG / Level 6)', pattern: /\bQCG\b|career(s)? guidance (qualification|diploma)|level 6[^.\n]{0,25}guidance/i },
+  {
+    name: 'Level 3 Award in Education and Training',
+    pattern: /award in education and training|\bPTLLS\b|\bAET\b|teaching qualification|training qualification/i,
+  },
+  { name: 'Assessor award (TAQA / CAVA)', pattern: /\bTAQA\b|\bCAVA\b|assessor (award|qualification)/i },
+  { name: 'Supported employment qualification', pattern: /supported employment (qualification|certificate|level)|\bBASE\b/ },
+  { name: 'Mental Health First Aid', pattern: /mental health first aid(er)?|\bMHFA\b/i },
+  { name: 'Safeguarding training', pattern: /safeguarding (training|certificate|course|level)/i },
+  {
+    name: 'Positive behaviour support training (PBS / Team Teach / MAPA)',
+    pattern: /positive behaviour(al)? support|\bPBS\b|team teach|\bMAPA\b/i,
+  },
+  { name: 'Autism training', pattern: /autism (awareness|training|qualification)/i },
+  { name: 'Makaton or British Sign Language', pattern: /\bmakaton\b|\bBSL\b|british sign language/i },
+  { name: 'Level 3 Supporting Teaching and Learning', pattern: /supporting teaching and learning|teaching assistant (level|qualification)/i },
+  { name: 'Level 3 in Childcare / Early Years', pattern: /level 3[^.\n]{0,30}(childcare|early years)|\bEYFS\b/i },
+  { name: 'CIPD qualification', pattern: /\bCIPD\b/ },
+  { name: 'Management qualification (ILM / CMI)', pattern: /\bILM\b|\bCMI\b|management qualification/i },
+  { name: 'PRINCE2 / project management qualification', pattern: /\bPRINCE2\b|\bAPM\b|\bPMP\b/ },
+];
+
+export type CvImprovement = EmployerSkill & { name: string; kind: 'Qualification' | 'Check or licence' | 'Skill' };
+
+/**
+ * What would strengthen the candidate's CV for this role: the qualifications, checks and skills the role's adverts
+ * ask for that the candidate's details don't show yet, most asked-for first (saved jobs and person specs count extra,
+ * as in findEmployerSkills). Suggestions to work towards only: nothing here is added to the CV.
+ */
+export function findCvImprovements(jobs: SourceJob[], profile: CvProfile, max = 8): CvImprovement[] {
+  // everything the candidate has told us, to check a qualification against
+  const own = [
+    ...profile.skills,
+    ...profile.education.flatMap((e) => [e.qualification, e.place]),
+    ...(profile.qualifications ?? []).flatMap((q) => [q.qualification, q.place]),
+  ].join('\n');
+  const adverts = jobs.map((job) => ({
+    text: [job.description ?? '', ...(job.tags ?? [])].join('\n'),
+    spec: personSpecification(job.description ?? ''),
+    chosen: isChosenJob(job),
+  }));
+  const count = (name: string, pattern: RegExp, kind: CvImprovement['kind']) => {
+    const mentioning = adverts.filter((a) => pattern.test(a.text));
+    const savedCount = mentioning.filter((a) => a.chosen).length;
+    const essentialCount = mentioning.filter((a) => a.spec && pattern.test(a.spec)).length;
+    return {
+      name,
+      skill: name,
+      kind,
+      jobCount: mentioning.length,
+      savedCount,
+      essentialCount,
+      weight: mentioning.length + savedCount * 2 + essentialCount,
+    };
+  };
+  return [
+    ...QUALIFICATIONS.filter((q) => !q.pattern.test(own)).map((q) => count(q.name, q.pattern, 'Qualification')),
+    ...SKILLS.filter((s) => !s.pattern.test(own) && !candidateHasSkill(profile, s.skill)).map((s) =>
+      count(s.skill, s.pattern, s.skill in CREDENTIALS ? 'Check or licence' : 'Skill'),
+    ),
+  ]
+    .filter((c) => c.jobCount > 0)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, max)
+    .map(({ weight, ...improvement }) => improvement);
 }
 
 export type EmployerSkill = {
@@ -288,7 +376,8 @@ export function buildTemplateCv({
     // Job Coach); skills we can't judge are the candidate's own specialisms, so they stay
     .filter((s) => employerSkills.length === 0 || rank(s) !== Number.MAX_SAFE_INTEGER || !knownSkill(s))
     .sort((a, b) => rank(a) - rank(b))
-    .slice(0, 12);
+    // every skill the adverts ask for that the candidate has is always kept; their own extras fill up to 12
+    .filter((s, i) => rank(s) !== Number.MAX_SAFE_INTEGER || i < 12);
   const strengths = skills.filter((s) => rank(s) !== Number.MAX_SAFE_INTEGER).slice(0, 3);
 
   const role = targetRole.trim();
@@ -327,7 +416,9 @@ export function buildTemplateCv({
         ? score + (employerSkills.length - i)
         : score;
     }, 0);
-  const jobPoints = jobs.map((e) =>
+  // paid jobs then volunteer roles: both give evidence for Relevant skills
+  const volunteer = (profile.volunteering ?? []).filter((e) => e.title.trim() || e.employer.trim());
+  const jobPoints = [...jobs, ...volunteer].map((e) =>
     (e.details ?? '')
       .split(/\n+/)
       .map((line) => line.replace(/^[\s•*-]+/, '').trim())
@@ -382,23 +473,24 @@ export function buildTemplateCv({
     relevantSkills.push({ skill, points });
   }
 
+  // points already shown under Relevant skills aren't repeated, but every role keeps at least one
+  const toCvRole = (e: CvProfile['experience'][number], pointsIndex: number, maxBullets: number) => {
+    const unused = jobPoints[pointsIndex].filter((p) => !used.has(p));
+    const bullets = unused.length ? unused : jobPoints[pointsIndex].slice(0, 1);
+    return { title: e.title.trim(), employer: e.employer.trim(), dates: e.dates?.trim() ?? '', bullets: bullets.slice(0, maxBullets) };
+  };
+
   return {
     summary,
     skills,
     credentials,
     relevantSkills,
-    experience: jobs.map((e, index) => {
-      // points already shown under Relevant skills aren't repeated, but every job keeps at least one
-      const unused = jobPoints[index].filter((p) => !used.has(p));
-      const bullets = unused.length ? unused : jobPoints[index].slice(0, 1);
-      return {
-        title: e.title.trim(),
-        employer: e.employer.trim(),
-        dates: e.dates?.trim() ?? '',
-        bullets: index < 2 ? bullets.slice(0, 4) : bullets.slice(0, 2),
-      };
-    }),
+    experience: jobs.map((e, index) => toCvRole(e, index, index < 2 ? 4 : 2)),
+    volunteering: volunteer.map((e, index) => toCvRole(e, jobs.length + index, 2)),
     education: profile.education
+      .filter((e) => e.qualification.trim() || e.place.trim())
+      .map((e) => ({ qualification: e.qualification.trim(), place: e.place.trim(), dates: e.dates?.trim() ?? '' })),
+    qualifications: (profile.qualifications ?? [])
       .filter((e) => e.qualification.trim() || e.place.trim())
       .map((e) => ({ qualification: e.qualification.trim(), place: e.place.trim(), dates: e.dates?.trim() ?? '' })),
   };
@@ -492,7 +584,10 @@ const isSubheading = (line: string, previous?: string, next?: string) =>
 function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean) {
   const experience: CvProfile['experience'] = [];
   const education: CvProfile['education'] = [];
+  const qualifications: NonNullable<CvProfile['qualifications']> = [];
+  const volunteering: NonNullable<CvProfile['volunteering']> = [];
   let section = '';
+  const isTrainingSection = () => /training|certificat|qualification|course|licen[cs]e/.test(section);
 
   // the lines under an entry, up to the next entry or heading
   const bodyOf = (from: number) => {
@@ -513,16 +608,18 @@ function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean)
     const parts = pipeParts(line);
     const dateIndex = parts.findIndex(isDatePart);
 
-    if (dateIndex === -1) {
-      // courses and certificates have no dates; only trust them under a matching heading
-      if (!/training|certificat|qualification|course|licen[cs]e/.test(section) || education.length >= 10) return;
-      const [qualification, place, level] = parts;
-      education.push({ qualification: level ? `${qualification} (${level})` : qualification, place, dates: '' });
+    const before = dateIndex === -1 ? parts : parts.slice(0, dateIndex);
+    const dates = dateIndex === -1 ? '' : parts[dateIndex];
+
+    // training courses and certificates go to Qualifications, kept apart from school and university.
+    // Undated "|" lines are only trusted as courses under a matching heading.
+    if (dateIndex === -1 || (isTrainingSection() && !PLACE.test(before[0]))) {
+      if (!isTrainingSection() || qualifications.length >= 10) return;
+      const [qualification, place = '', level] = before;
+      qualifications.push({ qualification: level ? `${qualification} (${level})` : qualification, place, dates });
       return;
     }
 
-    const before = parts.slice(0, dateIndex);
-    const dates = parts[dateIndex];
     const body = bodyOf(i + 1).filter((l) => !isLocationLine(l) || l.split(' ').length > 3);
 
     if (before.length === 1 && PLACE.test(before[0])) {
@@ -534,7 +631,10 @@ function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean)
       return;
     }
 
-    if (before.length === 0 || experience.length >= 10) return;
+    // roles under a volunteering heading ("Previous Volunteer Roles"), or called a volunteer, go to Volunteering
+    const isVolunteering = /volunt/.test(section) || /\bvolunteer/i.test(before[0] ?? '');
+    const roles = isVolunteering ? volunteering : experience;
+    if (before.length === 0 || roles.length >= 10) return;
     // wrapped lines join back into one point; a new point starts after a full stop, at a bullet,
     // or at a capital letter after a line that stopped well short of the page width
     const points: string[] = [];
@@ -549,10 +649,10 @@ function parsePipeEntries(lines: string[], isHeading: (line: string) => boolean)
       if (isNewPoint) points.push(stripBullet(l));
       else points[points.length - 1] += ` ${l}`;
     });
-    experience.push({ title: before[0], employer: before[1] ?? '', dates, details: points.join('\n') });
+    roles.push({ title: before[0], employer: before[1] ?? '', dates, details: points.join('\n') });
   });
 
-  return { experience, education };
+  return { experience, education, qualifications, volunteering };
 }
 
 // "L E E D S , U N I T E D K I N G D O M | 0 7 4 0 7 ..." -> "LEEDS,UNITEDKINGDOM|07407..."
@@ -688,6 +788,8 @@ export function parseCvText(text: string, pageTitle?: string): Partial<CvProfile
     ...(skills?.length && { skills }),
     ...(experience.length && { experience }),
     ...(education.length && { education }),
+    ...(pipeEntries.qualifications.length && { qualifications: pipeEntries.qualifications }),
+    ...(pipeEntries.volunteering.length && { volunteering: pipeEntries.volunteering }),
   };
 }
 
@@ -718,19 +820,24 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
   // the five skills that matter most; each with its evidence when there is some, otherwise a plain bullet
   const topSkills = cv.relevantSkills?.length ? cv.relevantSkills : cv.skills.slice(0, 5).map((skill) => ({ skill, points: [] as string[] }));
   const withEvidence = topSkills.filter((s) => s.points.length);
+  // every other skill on the candidate's list (which includes each "What employers want" skill they have) still
+  // shows, on one line, so nothing employers ask for is left off; checks and licences are in the courses section
+  const otherSkills = cv.skills.filter((s) => !topSkills.some((t) => t.skill === s));
   const relevantSkills =
-    withEvidence.length > 0
-      ? topSkills
-          .map((s) => `<div class="item"><h3>${e(s.skill)}</h3>${list(s.points)}</div>`)
-          .join('')
-      : list(topSkills.map((s) => s.skill));
+    (withEvidence.length > 0
+      ? topSkills.map((s) => `<div class="item"><h3>${e(s.skill)}</h3>${list(s.points)}</div>`).join('')
+      : list(topSkills.map((s) => s.skill))) +
+    (otherSkills.length ? `<p class="more"><strong>Other skills:</strong> ${otherSkills.map(e).join(', ')}</p>` : '');
 
-  const experience = cv.experience
-    .map(
-      (job) =>
-        `<div class="item">${heading([job.title, job.employer].filter(Boolean).join(', '), job.dates)}${list(job.bullets)}</div>`,
-    )
-    .join('');
+  const roles = (items: GeneratedCv['experience']) =>
+    items
+      .map(
+        (job) =>
+          `<div class="item">${heading([job.title, job.employer].filter(Boolean).join(', '), job.dates)}${list(job.bullets)}</div>`,
+      )
+      .join('');
+  const experience = roles(cv.experience);
+  const volunteering = roles(cv.volunteering ?? []);
   // courses and certificates (no dates, not a school) go with the checks and licences, as in the Oxford example
   const PLACE_WORDS = /\b(university|college|school|academy|institute|sixth form|polytechnic)\b/i;
   const isCourse = (ed: GeneratedCv['education'][number]) => !ed.dates && !PLACE_WORDS.test(ed.place);
@@ -742,7 +849,9 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
     )
     .join('');
   const courses = [
-    ...cv.education.filter(isCourse).map((ed) => [ed.qualification, ed.place].filter(Boolean).join(', ')),
+    ...[...(cv.qualifications ?? []), ...cv.education.filter(isCourse)].map((q) =>
+      [[q.qualification, q.place].filter(Boolean).join(', '), q.dates].filter(Boolean).join(' – '),
+    ),
     ...(cv.credentials ?? []),
   ];
 
@@ -751,20 +860,21 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
 <style>
   @page { size: A4; margin: 15mm 18mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: 'Times New Roman', Times, Georgia, serif; color: #000; font-size: 11pt; line-height: 1.35; background: #fff; }
+  body { margin: 0; font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif; color: #000; font-size: 11pt; line-height: 1.35; background: #fff; }
   .page { max-width: 174mm; margin: 0 auto; }
   header { text-align: center; padding-bottom: 8px; }
-  h1 { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+  h1 { margin: 0; font-size: 16pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
   .contact div { margin-top: 1px; }
   section { border-top: 1.5px solid #a6a6a6; margin-top: 10px; padding-top: 4px; }
-  h2 { margin: 0 0 6px; font-family: Arial, Helvetica, sans-serif; font-size: 11.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
-  h3 { margin: 8px 0 1px; font-family: Arial, Helvetica, sans-serif; font-size: 11pt; font-weight: bold; }
+  h2 { margin: 0 0 6px; font-size: 11.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
+  h3 { margin: 8px 0 1px; font-size: 11pt; font-weight: bold; }
   p { margin: 0; }
   .item { margin-bottom: 8px; page-break-inside: avoid; }
   .row { display: flex; justify-content: space-between; gap: 16px; }
   .dates { white-space: nowrap; }
   ul { margin: 2px 0 0; padding-left: 22px; }
   li { margin: 1px 0; }
+  .more { margin-top: 8px; }
 </style></head>
 <body><div class="page">
   <header>
@@ -774,6 +884,7 @@ export function renderCvHtml({ cv, profile }: { cv: GeneratedCv; profile: CvProf
   ${section('Career profile', cv.summary ? `<p>${e(cv.summary)}</p>` : '')}
   ${section('Relevant skills', relevantSkills)}
   ${section('Work experience', experience)}
+  ${section('Volunteering', volunteering)}
   ${section('Education', education)}
   ${section('Relevant courses and certificates', list(courses))}
 </div></body></html>`;

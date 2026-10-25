@@ -119,6 +119,10 @@ export type CvProfile = {
   skills: string[];
   experience: Array<{ title: string; employer: string; dates?: string; details?: string }>;
   education: Array<{ qualification: string; place: string; dates?: string }>;
+  // training courses and certificates (Care Certificate, Level 2 courses ...), kept apart from school and university
+  qualifications?: Array<{ qualification: string; place: string; dates?: string }>;
+  // unpaid roles, kept apart from paid work (employer is the organisation)
+  volunteering?: Array<{ title: string; employer: string; dates?: string; details?: string }>;
 };
 
 /** A finished CV, ready to lay out. */
@@ -129,6 +133,8 @@ export type GeneratedCv = {
   education: Array<{ qualification: string; place: string; dates: string }>;
   // checks and licences employers screen for (DBS, driving licence, ...)
   credentials?: string[];
+  qualifications?: Array<{ qualification: string; place: string; dates: string }>;
+  volunteering?: Array<{ title: string; employer: string; dates: string; bullets: string[] }>;
   // skills-based layout: the top skills, each with the points from the candidate's jobs that show it
   relevantSkills?: Array<{ skill: string; points: string[] }>;
 };
@@ -191,7 +197,7 @@ export type StripeConfig = {
   plans: StripeBillingPlan[];
 };
 
-export type AdvancedMatchingConfig = {
+export type AiFilterConfig = {
   id: number;
   user_id: string;
   blacklisted_companies: string[];
@@ -285,9 +291,9 @@ export type DbSchema = {
         Relationships: [];
       };
       advanced_matching: {
-        Row: AdvancedMatchingConfig;
-        Insert: Pick<AdvancedMatchingConfig, 'blacklisted_companies' | 'chatgpt_prompt'>;
-        Update: Partial<Pick<AdvancedMatchingConfig, 'blacklisted_companies' | 'chatgpt_prompt'>>;
+        Row: AiFilterConfig;
+        Insert: Pick<AiFilterConfig, 'blacklisted_companies' | 'chatgpt_prompt'>;
+        Update: Partial<Pick<AiFilterConfig, 'blacklisted_companies' | 'chatgpt_prompt'>>;
         Relationships: [];
       };
     };

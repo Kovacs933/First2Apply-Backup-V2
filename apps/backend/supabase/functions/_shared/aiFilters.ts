@@ -1,4 +1,4 @@
-import { AdvancedMatchingConfig, DbSchema, getExceptionMessage, Job, JobStatus, throwError } from '@first2apply/core';
+import { AiFilterConfig, DbSchema, getExceptionMessage, Job, JobStatus, throwError } from '@first2apply/core';
 import { SupabaseClient } from '@supabase/supabasefork';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
@@ -9,10 +9,10 @@ import { buildOpenAiClient, logAiUsage, OPENROUTER_ROUTING } from './openAI.ts';
 import { checkUserSubscription } from './subscription.ts';
 
 /**
- * Apply all the advanced matching rules to the given job and
+ * Apply all the AI filters rules to the given job and
  * determine if it should be excluded from the user's feed.
  */
-export async function applyAdvancedMatchingFilters({
+export async function applyAiFilters({
   logger,
   supabaseClient,
   supabaseAdminClient,
@@ -23,40 +23,40 @@ export async function applyAdvancedMatchingFilters({
   supabaseAdminClient: SupabaseClient<DbSchema, 'public'>;
   job: Job;
 }): Promise<{ newStatus: JobStatus; excludeReason?: string }> {
-  logger.info(`applying advanced matching filters to job ${job.id} ...`);
-  // check if the user has advanced matching enabled
-  const { hasAdvancedMatching } = await checkUserSubscription({
+  logger.info(`applying AI filters filters to job ${job.id} ...`);
+  // check if the user has AI filters enabled
+  const { hasAiFilters } = await checkUserSubscription({
     supabaseAdminClient,
     userId: job.user_id,
   });
-  if (!hasAdvancedMatching) {
-    logger.info('user does not have advanced matching enabled');
+  if (!hasAiFilters) {
+    logger.info('user does not have AI filters enabled');
     return { newStatus: 'new' };
   }
 
-  // load the advanced matching config for this user
-  const { data: advancedMatchingArr, error: getAdvancedMatchingErr } = await supabaseClient
+  // load the AI filters config for this user
+  const { data: aiFilterArr, error: getAiFilterErr } = await supabaseClient
     .from('advanced_matching')
     .select('*')
     .eq('user_id', job.user_id);
-  if (getAdvancedMatchingErr) {
-    throw getAdvancedMatchingErr;
+  if (getAiFilterErr) {
+    throw getAiFilterErr;
   }
-  const advancedMatching: AdvancedMatchingConfig = advancedMatchingArr?.[0];
-  if (!advancedMatching) {
-    logger.info(`advanced matching config not found for user ${job.user_id}`);
+  const aiFilters: AiFilterConfig = aiFilterArr?.[0];
+  if (!aiFilters) {
+    logger.info(`AI filters config not found for user ${job.user_id}`);
     return { newStatus: 'new' };
   }
 
   // location filter (no AI): outside the UK or too far from the user's town or postcode
-  const locationCheck = await checkJobLocation({ location: job.location, jobType: job.jobType, config: advancedMatching });
+  const locationCheck = await checkJobLocation({ location: job.location, jobType: job.jobType, config: aiFilters });
   if (locationCheck.excluded) {
     logger.info(`job excluded due to location: ${job.location}`);
     return { newStatus: 'excluded_by_advanced_matching', excludeReason: locationCheck.reason };
   }
 
   // exclude jobs from specific companies if it fully matches the entire company name
-  if (isExcludedCompany({ companyName: job.companyName, advancedMatching })) {
+  if (isExcludedCompany({ companyName: job.companyName, aiFilters })) {
     logger.info(`job excluded due to company name: ${job.companyName}`);
     return {
       newStatus: 'excluded_by_advanced_matching',
@@ -65,12 +65,12 @@ export async function applyAdvancedMatchingFilters({
   }
 
   // prompt the LLM to determine if the job should be excluded
-  if (job.description && advancedMatching.chatgpt_prompt) {
+  if (job.description && aiFilters.chatgpt_prompt) {
     logger.info('prompting the LLM to determine if the job should be excluded ...');
 
     try {
       const { exclusionDecision } = await promptOpenAI({
-        prompt: advancedMatching.chatgpt_prompt,
+        prompt: aiFilters.chatgpt_prompt,
         job,
         logger,
         supabaseAdminClient,
@@ -85,25 +85,25 @@ export async function applyAdvancedMatchingFilters({
       }
     } catch (error) {
       // fail open: a model or JSON-parse failure must not drop a job or break the scan
-      logger.error(`advanced matching LLM call failed, keeping job as-is: ${getExceptionMessage(error)}`);
+      logger.error(`AI filters LLM call failed, keeping job as-is: ${getExceptionMessage(error)}`);
     }
   }
 
-  logger.info('job passed all advanced matching filters');
+  logger.info('job passed all AI filters filters');
   return { newStatus: 'new' };
 }
 
 /**
- * Check if the company name is excluded by the advanced matching filters.
+ * Check if the company name is excluded by the AI filters filters.
  */
 export function isExcludedCompany({
   companyName,
-  advancedMatching,
+  aiFilters,
 }: {
   companyName: string;
-  advancedMatching: AdvancedMatchingConfig;
+  aiFilters: AiFilterConfig;
 }): boolean {
-  const excludedCompanies = advancedMatching.blacklisted_companies.map((c) => c.toLowerCase());
+  const excludedCompanies = aiFilters.blacklisted_companies.map((c) => c.toLowerCase());
   const lowerCaseCompanyName = companyName.toLowerCase();
   return excludedCompanies.some((c) => lowerCaseCompanyName === c);
 }

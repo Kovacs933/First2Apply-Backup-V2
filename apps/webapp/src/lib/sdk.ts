@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type {
-  AdvancedMatchingConfig,
+  AiFilterConfig,
   First2ApplyApiSdk,
   Job,
   JobLabel,
@@ -142,13 +142,13 @@ export class WebappApiSdk implements First2ApplyApiSdk {
     return throwError('updateReview not implemented');
   }
 
-  // Advanced Matching
-  async getAdvancedMatchingConfig(): Promise<AdvancedMatchingConfig | null> {
-    return throwError('getAdvancedMatchingConfig not implemented');
+  // AI Filters
+  async getAiFilterConfig(): Promise<AiFilterConfig | null> {
+    return throwError('getAiFilterConfig not implemented');
   }
-  async updateAdvancedMatchingConfig(
-    _: Pick<AdvancedMatchingConfig, 'chatgpt_prompt' | 'blacklisted_companies'>,
-  ): Promise<AdvancedMatchingConfig> {
-    return throwError('updateAdvancedMatchingConfig not implemented');
+  async updateAiFilterConfig(
+    _: Pick<AiFilterConfig, 'chatgpt_prompt' | 'blacklisted_companies'>,
+  ): Promise<AiFilterConfig> {
+    return throwError('updateAiFilterConfig not implemented');
   }
 }

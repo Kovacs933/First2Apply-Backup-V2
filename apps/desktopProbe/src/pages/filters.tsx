@@ -5,7 +5,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { FiltersSkeleton } from '@/components/skeletons/filtersSkeleton';
 import { useError } from '@/hooks/error';
 import { suggestFromDeletedJobs } from '@/lib/deletedJobSuggestions';
-import { getAdvancedMatchingConfig, listJobs, updateAdvancedMatchingConfig } from '@/lib/electronMainSdk';
+import { getAiFilterConfig, listJobs, updateAiFilterConfig } from '@/lib/electronMainSdk';
 import { Job } from '@first2apply/core';
 import { Alert, AlertDescription, AlertTitle } from '@first2apply/ui';
 import { Badge } from '@first2apply/ui';
@@ -42,7 +42,7 @@ export function FiltersPage() {
   useEffect(() => {
     const asyncLoad = async () => {
       try {
-        const config = await getAdvancedMatchingConfig();
+        const config = await getAiFilterConfig();
         if (config) {
           setUserAiInput(config.chatgpt_prompt);
           setBlacklistedCompanies(config.blacklisted_companies);
@@ -100,7 +100,7 @@ export function FiltersPage() {
     const timer = setTimeout(async () => {
       try {
         // AI filters are available to everyone in Foundation, no plan check
-        await updateAdvancedMatchingConfig(configToSave);
+        await updateAiFilterConfig(configToSave);
         lastSaved.current = snapshot;
         setSaveStatus('saved');
       } catch (error) {
@@ -117,7 +117,7 @@ export function FiltersPage() {
   useEffect(
     () => () => {
       if (lastSaved.current === null || lastSaved.current === JSON.stringify(latest.current)) return;
-      updateAdvancedMatchingConfig(latest.current).catch((error) => console.error(error));
+      updateAiFilterConfig(latest.current).catch((error) => console.error(error));
     },
     [],
   );
@@ -226,7 +226,7 @@ export function FiltersPage() {
               <p className="text-sm font-medium">of your town or postcode</p>
               <Input
                 value={locationCenter}
-                placeholder="e.g. Leeds or LS6 2NU"
+                placeholder="Leeds or LS6 2NU"
                 onChange={(e) => setLocationCenter(e.target.value)}
                 maxLength={60}
                 className="bg-background text-base"
@@ -266,7 +266,7 @@ export function FiltersPage() {
           <div className="relative flex-1">
             <Input
               value={addBlacklistedCompany}
-              placeholder="e.g. Acme Recruitment Ltd"
+              placeholder="Acme Recruitment Ltd"
               onChange={(evt) => setAddBlacklistedCompany(evt.target.value)}
               maxLength={100}
               className="bg-card px-6 pr-20 text-base ring-ring placeholder:text-base focus-visible:ring-2"

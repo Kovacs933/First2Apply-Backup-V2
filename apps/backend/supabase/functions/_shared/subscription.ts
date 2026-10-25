@@ -2,7 +2,7 @@ import { DbSchema, Profile } from '@first2apply/core';
 import { SupabaseClient } from '@supabase/supabasefork';
 
 /**
- * Retrieve the user profile and check if his subscription allows advanced matching.
+ * Retrieve the user profile and check if his subscription allows AI filters.
  */
 export async function checkUserSubscription({
   supabaseAdminClient,
@@ -13,7 +13,7 @@ export async function checkUserSubscription({
 }): Promise<{
   profile: Profile;
   subscriptionHasExpired: boolean;
-  hasAdvancedMatching: boolean;
+  hasAiFilters: boolean;
   hasCustomJobsParsing: boolean;
 }> {
   const { data: profile, error } = await supabaseAdminClient
@@ -37,8 +37,8 @@ export async function checkUserSubscription({
   return {
     profile,
     subscriptionHasExpired,
-    // Foundation gives AI advanced matching to every user, whatever their plan
-    hasAdvancedMatching: true,
+    // Foundation gives AI AI filters to every user, whatever their plan
+    hasAiFilters: true,
     hasCustomJobsParsing: hasProTier && !subscriptionHasExpired,
   };
 }

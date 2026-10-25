@@ -1,7 +1,7 @@
 import { Job } from '@first2apply/core';
 import { getExceptionMessage } from '@first2apply/core';
 
-import { applyAdvancedMatchingFilters } from '../_shared/advancedMatching.ts';
+import { applyAiFilters } from '../_shared/aiFilters.ts';
 import { CORS_HEADERS } from '../_shared/cors.ts';
 import { getEdgeFunctionContext } from '../_shared/edgeFunctions.ts';
 import { detectClosedJob } from '../_shared/jobClosed.ts';
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       if (closedReason) logger.info(`[${site.provider}] job ${jobId} has closed`);
       const { newStatus, excludeReason } = closedReason
         ? { newStatus: 'excluded_by_advanced_matching' as const, excludeReason: closedReason }
-        : await applyAdvancedMatchingFilters({
+        : await applyAiFilters({
             logger,
             job: updatedJob,
             supabaseClient,

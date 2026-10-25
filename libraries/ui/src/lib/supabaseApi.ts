@@ -1,5 +1,5 @@
 import {
-  AdvancedMatchingConfig,
+  AiFilterConfig,
   DbSchema,
   GenerateCvParams,
   GeneratedCv,
@@ -684,9 +684,9 @@ export class F2aSupabaseApi {
   }
 
   /**
-   * Get the advanced matching configuration for the current user.
+   * Get the AI filters configuration for the current user.
    */
-  async getAdvancedMatchingConfig() {
+  async getAiFilterConfig() {
     const [config] = await this._supabaseApiCall(
       async () => await this._supabase.from("advanced_matching").select("*")
     )
@@ -695,22 +695,35 @@ export class F2aSupabaseApi {
   }
 
   /**
-   * Update the advanced matching configuration for the current user.
+   * Update the AI filters configuration for the current user.
    */
-  async updateAdvancedMatchingConfig(
+  async updateAiFilterConfig(
     config: Pick<
-      AdvancedMatchingConfig,
+      AiFilterConfig,
       "chatgpt_prompt" | "blacklisted_companies"
     > &
-      Partial<Pick<AdvancedMatchingConfig, "uk_only" | "location_center" | "location_radius_miles">>
+      Partial<Pick<AiFilterConfig, "uk_only" | "location_center" | "location_radius_miles">>
   ) {
+    // save against the signed-in account explicitly; without a session the database would refuse the save
+    // with a confusing permissions error, so say what's actually wrong
+    const {
+      data: { user },
+    } = await this._supabase.auth.getUser()
+    if (!user) {
+      throw new Error(
+        "You've been signed out, so your AI filters couldn't be saved. Log in to Foundation again and try once more."
+      )
+    }
     const [updatedConfig] = await this._supabaseApiCall(
       async () =>
         await this._supabase
           .from("advanced_matching")
-          .upsert(config, {
-            onConflict: "user_id",
-          })
+          .upsert(
+            { ...config, user_id: user.id },
+            {
+              onConflict: "user_id",
+            }
+          )
           .select("*")
     )
 

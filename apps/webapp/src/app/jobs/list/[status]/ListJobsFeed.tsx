@@ -124,7 +124,7 @@ const PageHeaderNameMap: Record<JobStatus, string> = {
   new: 'New Jobs',
   applied: 'Applied Jobs',
   archived: 'Archived Jobs',
-  excluded_by_advanced_matching: 'Excluded by Advanced Matching',
+  excluded_by_advanced_matching: 'Excluded by AI Filters',
   deleted: 'Deleted Jobs',
   processing: 'Processing Jobs',
 };

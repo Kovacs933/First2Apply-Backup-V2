@@ -221,14 +221,14 @@ export async function parseCustomJobDescription({
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) throw new Error('Could not parse html');
 
-  const { data: advancedMatchingRecord, error: getAdvancedMatchingRecordError } = await context.supabaseAdminClient
+  const { data: aiFilterRecord, error: getAiFilterRecordError } = await context.supabaseAdminClient
     .from('advanced_matching')
     .select('*')
     .eq('user_id', user.id)
     .maybeSingle();
-  if (getAdvancedMatchingRecordError) {
+  if (getAiFilterRecordError) {
     context.logger.error(
-      `Failed to load advanced matching config for user ${user.id}: ${getAdvancedMatchingRecordError.message}`,
+      `Failed to load AI filters config for user ${user.id}: ${getAiFilterRecordError.message}`,
     );
   }
 
@@ -242,7 +242,7 @@ export async function parseCustomJobDescription({
     stripNodes(document.documentElement, nodesToRemove);
     stripAttributes(document.documentElement, /^(class|style|aria-.*|role)$/);
     const htmlContent = turndownService.turndown(document.documentElement?.outerHTML ?? '');
-    const withAdvancedMatchingPreferences = `Here are my job search preferences: ${advancedMatchingRecord?.chatgpt_prompt ?? 'nothing specific for the moment'}.`;
+    const withAiFilterPreferences = `Here are my job search preferences: ${aiFilterRecord?.chatgpt_prompt ?? 'nothing specific for the moment'}.`;
 
     const userPrompt = `Extract the job description from the HTML page below. Return the result as a JSON object matching the provided schema.
 Here is the HTML page turned into markdown:
@@ -250,7 +250,7 @@ Here is the HTML page turned into markdown:
 ${htmlContent}
 """
 
-${withAdvancedMatchingPreferences}
+${withAiFilterPreferences}
 `;
 
     return { userPrompt, htmlContent };

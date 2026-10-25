@@ -8,7 +8,7 @@ export function FiltersSkeleton() {
         <Skeleton className="h-8 w-56 rounded-md" />
       </div>
 
-      {/* Advanced matching skeleton */}
+      {/* AI filters skeleton */}
       <Skeleton className="mb-4 h-7 w-full max-w-[800px] rounded-md" />
       <Skeleton className="mb-2 h-[106px] w-full rounded-md" />
       <Skeleton className="mb-16 h-5 w-full max-w-[1056px] rounded-md" />

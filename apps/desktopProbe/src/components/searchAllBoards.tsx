@@ -120,7 +120,7 @@ export function SearchAllBoards({ open, onOpenChange }: { open: boolean; onOpenC
             <Label htmlFor="search-all-keywords">Job title or keywords</Label>
             <Input
               id="search-all-keywords"
-              placeholder="eg: data analyst"
+              placeholder="data analyst"
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
             />
@@ -129,7 +129,7 @@ export function SearchAllBoards({ open, onOpenChange }: { open: boolean; onOpenC
             <Label htmlFor="search-all-location">Town, city or postcode (optional)</Label>
             <Input
               id="search-all-location"
-              placeholder="eg: Manchester"
+              placeholder="Manchester"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />

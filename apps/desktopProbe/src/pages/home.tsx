@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { JobTabs } from '@/components/home/jobTabs';
+import { Icons } from '@/components/icons';
 import { JobsListSkeleton } from '@/components/home/jobsSkeleton';
 import { useLinks } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
@@ -55,8 +56,10 @@ function NoLinks() {
   return (
     <DefaultLayout className={`flex h-screen w-full max-w-[800px] flex-col justify-evenly pb-14 md:px-10 lg:px-20`}>
       <div className="flex flex-col items-center gap-10">
-        <h1 className="text-3xl font-semibold sm:text-4xl md:text-5xl lg:text-6xl">
-          Be the: <span className="text-primary">first 2 apply</span>
+        {/* the Foundation logo and name in its gold and navy */}
+        <h1 className="flex items-center gap-4 text-3xl font-semibold text-[#1F3A5F] dark:text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
+          <Icons.logo className="h-12 w-12 md:h-16 md:w-16" aria-hidden="true" />
+          Foundation
         </h1>
         <p className="text-center text-muted-foreground">
           Save your tailored job searches from top job platforms, and let us do the heavy lifting. We'll monitor your

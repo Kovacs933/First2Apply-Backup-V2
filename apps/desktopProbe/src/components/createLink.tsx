@@ -300,7 +300,7 @@ const JobSearchSubmitDialog = ({
                       <Input
                         id="title"
                         type="title"
-                        placeholder="Enter a descriptive name (eg: java senior remote)"
+                        placeholder="Enter a descriptive name (java senior remote)"
                         {...field}
                       />
                     </FormControl>

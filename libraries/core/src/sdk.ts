@@ -1,7 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 
 import type {
-  AdvancedMatchingConfig,
+  AiFilterConfig,
   Job,
   JobLabel,
   JobSite,
@@ -162,14 +162,14 @@ export interface First2ApplyApiSdk {
   updateReview(_: { id: number; title: string; description: string; rating: number }): Promise<Review>;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Advanced Matching
+  // AI Filters
   // ─────────────────────────────────────────────────────────────────────────────
 
-  /** Get the advanced matching configuration */
-  getAdvancedMatchingConfig(): Promise<AdvancedMatchingConfig | null>;
+  /** Get the AI filters configuration */
+  getAiFilterConfig(): Promise<AiFilterConfig | null>;
 
-  /** Update the advanced matching configuration */
-  updateAdvancedMatchingConfig(
-    config: Pick<AdvancedMatchingConfig, 'chatgpt_prompt' | 'blacklisted_companies'>,
-  ): Promise<AdvancedMatchingConfig>;
+  /** Update the AI filters configuration */
+  updateAiFilterConfig(
+    config: Pick<AiFilterConfig, 'chatgpt_prompt' | 'blacklisted_companies'>,
+  ): Promise<AiFilterConfig>;
 }
