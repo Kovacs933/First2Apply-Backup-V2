@@ -54,6 +54,53 @@ export function boardDistance(provider: SiteProvider, search: BoardSearch): stri
 }
 
 /**
+ * The distance setting in each board's search page address, for searches saved from the board itself.
+ */
+const DISTANCE_URL_PARAMS: Array<{ host: RegExp; provider: SiteProvider; param: string }> = [
+  { host: /(^|\.)linkedin\.com$/, provider: SiteProvider.linkedin, param: 'distance' },
+  { host: /(^|\.)indeed\.com$/, provider: SiteProvider.indeed, param: 'radius' },
+  { host: /(^|\.)reed\.co\.uk$/, provider: SiteProvider.reed, param: 'proximity' },
+  { host: /(^|\.)(totaljobs\.com|cwjobs\.co\.uk)$/, provider: SiteProvider.totaljobs, param: 'radius' },
+  { host: /(^|\.)cv-library\.co\.uk$/, provider: SiteProvider.cvLibrary, param: 'distance' },
+  { host: /(^|\.)adzuna\.co\.uk$/, provider: SiteProvider.adzuna, param: 'd' },
+  { host: /(^|\.)jobs\.nhs\.uk$/, provider: SiteProvider.nhsJobs, param: 'distance' },
+  { host: /(^|\.)charityjob\.co\.uk$/, provider: SiteProvider.charityJob, param: 'radius' },
+];
+
+function distanceParamFor(url: string) {
+  try {
+    const { hostname } = new URL(url);
+    return DISTANCE_URL_PARAMS.find(({ host }) => host.test(hostname));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether we can set the distance on a search page address from this board. */
+export function supportsDistance(url: string) {
+  return !!distanceParamFor(url);
+}
+
+/** The distance (miles) already set in a search page address, if any. */
+export function distanceInUrl(url: string): number | undefined {
+  const match = distanceParamFor(url);
+  if (!match) return undefined;
+  const value = Number(new URL(url).searchParams.get(match.param));
+  return Number.isFinite(value) && new URL(url).searchParams.has(match.param) ? value : undefined;
+}
+
+/** The search page address with its distance set to the board's nearest option to `miles`. */
+export function withDistance(url: string, miles: number): string {
+  const match = distanceParamFor(url);
+  if (!match) return url;
+  const distance = boardDistance(match.provider, { keywords: '', location: 'set', distanceMiles: miles });
+  if (!distance) return url;
+  const updated = new URL(url);
+  updated.searchParams.set(match.param, distance);
+  return updated.toString();
+}
+
+/**
  * Builds the search results page address for each board that supports searching straight from a link,
  * so one job title + location (+ distance) can be turned into a saved search on every board at once.
  */

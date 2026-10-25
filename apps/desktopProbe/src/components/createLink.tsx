@@ -2,6 +2,7 @@ import { InfoCircledIcon } from '@radix-ui/react-icons/dist';
 import { useRef, useState } from 'react';
 
 import { useError } from '@/hooks/error';
+import { distanceInUrl, supportsDistance, withDistance } from '@/lib/boardSearchUrls';
 import { OverlayBrowserViewResult } from '@/lib/types';
 import { JobSite, Link, getExceptionMessage } from '@first2apply/core';
 import { useForm } from '@first2apply/ui';
@@ -26,6 +27,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
 import { BrowserWindow, BrowserWindowHandle } from './browserWindow';
+import { DistanceSlider } from './distanceSlider';
 import { Icons } from './icons';
 import { SearchAllBoards } from './searchAllBoards';
 
@@ -90,14 +92,14 @@ export function CreateLink() {
     }
   };
 
-  const onSaveSearch = async ({ title, force }: { title: string; force: boolean }) => {
+  const onSaveSearch = async ({ title, url, force }: { title: string; url: string; force: boolean }) => {
     if (!jobBoardModalResponse) {
       handleError({ error: new Error('No job search data'), title: 'Error saving job search' });
       return;
     }
 
     const createdLink = await createLink({
-      url: jobBoardModalResponse.url,
+      url, // the board's address, with the distance from the slider if one was chosen
       title, // use the title provided by the user
       html: jobBoardModalResponse.html,
       webPageRuntimeData: jobBoardModalResponse.webPageRuntimeData,
@@ -197,7 +199,7 @@ const JobSearchSubmitDialog = ({
   title: string;
   url: string;
   isOpen: boolean;
-  onSaveJobSearch: (data: { title: string; force: boolean }) => Promise<Link>;
+  onSaveJobSearch: (data: { title: string; url: string; force: boolean }) => Promise<Link>;
   onCancel: () => void;
 }) => {
   if (!isOpen) {
@@ -207,6 +209,12 @@ const JobSearchSubmitDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // the board's own distance is kept until the slider is moved
+  const canSetDistance = supportsDistance(url);
+  const [distanceMiles, setDistanceMiles] = useState(() => distanceInUrl(url) ?? 10);
+  const [distanceChanged, setDistanceChanged] = useState(false);
+  const searchUrl = canSetDistance && distanceChanged ? withDistance(url, distanceMiles) : url;
 
   const formSchema = z.object({
     title: z.string().min(1, 'Title is required'),
@@ -224,7 +232,7 @@ const JobSearchSubmitDialog = ({
   const onSubmit = async (data: { title: string }) => {
     setIsSubmitting(true);
     try {
-      await onSaveJobSearch({ title: data.title, force: !!errorMessage });
+      await onSaveJobSearch({ title: data.title, url: searchUrl, force: !!errorMessage });
       toast({
         title: 'Job search created',
         description: `Job search ${data.title} created successfully`,
@@ -291,11 +299,28 @@ const JobSearchSubmitDialog = ({
                   <FormItem className="w-full">
                     <FormLabel>URL</FormLabel>
                     <FormControl>
-                      <Input id="url" type="url" disabled={true} {...field} />
+                      <Input id="url" type="url" disabled={true} {...field} value={searchUrl} />
                     </FormControl>
                   </FormItem>
                 )}
               />
+
+              {canSetDistance && (
+                <DistanceSlider
+                  id="add-search-distance"
+                  label="Distance from the location you searched"
+                  value={distanceMiles}
+                  onChange={(miles) => {
+                    setDistanceMiles(miles);
+                    setDistanceChanged(true);
+                  }}
+                  hint={
+                    distanceChanged
+                      ? "If the board doesn't offer this exact distance, its nearest wider option (or its maximum) is used. Only applies if you searched with a location."
+                      : "Using the distance you picked on the job board. Move the slider to change it."
+                  }
+                />
+              )}
             </div>
 
             <div className="flex flex-row items-center justify-between pt-3">

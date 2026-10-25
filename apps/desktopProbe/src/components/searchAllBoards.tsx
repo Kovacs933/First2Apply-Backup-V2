@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@first2apply/ui';
 
+import { DistanceSlider } from './distanceSlider';
 import { Icons } from './icons';
 
 /**
@@ -135,38 +136,18 @@ export function SearchAllBoards({ open, onOpenChange }: { open: boolean; onOpenC
           </div>
         </div>
 
-        <div className={hasLocation ? '' : 'opacity-50'}>
-          <div className="mb-1.5 flex items-center justify-between">
-            <Label htmlFor="search-all-distance">Distance from {location.trim() || 'your location'}</Label>
-            <span className="text-sm font-medium">
-              {distanceMiles === 0 ? 'Exact location only' : `Within ${distanceMiles} miles`}
-            </span>
-          </div>
-          <input
-            id="search-all-distance"
-            type="range"
-            min={0}
-            max={500}
-            step={5}
-            value={distanceMiles}
-            disabled={!hasLocation}
-            onChange={(e) => setDistanceMiles(Number(e.target.value))}
-            className="w-full cursor-pointer accent-primary disabled:cursor-not-allowed"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>0</span>
-            <span>100</span>
-            <span>200</span>
-            <span>300</span>
-            <span>400</span>
-            <span>500 miles</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {hasLocation
+        <DistanceSlider
+          id="search-all-distance"
+          label={`Distance from ${location.trim() || 'your location'}`}
+          value={distanceMiles}
+          onChange={setDistanceMiles}
+          disabled={!hasLocation}
+          hint={
+            hasLocation
               ? "Boards that don't offer this exact distance use their nearest wider option or their maximum (Reed up to 50 miles, LinkedIn, Indeed and NHS Jobs up to 100). GOV.UK Find a Job and jobs.ac.uk don't support distance, so they use their own default area."
-              : 'Add a town, city or postcode to choose a distance.'}
-          </p>
-        </div>
+              : 'Add a town, city or postcode to choose a distance.'
+          }
+        />
 
         <div>
           <p className="mb-2 text-sm font-medium">Job boards</p>

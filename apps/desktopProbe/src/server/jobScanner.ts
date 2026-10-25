@@ -18,7 +18,7 @@ const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
 
 const DEFAULT_SETTINGS: JobScannerSettings = {
-  cronRule: AVAILABLE_CRON_RULES[1].value, // every 1h
+  cronRule: AVAILABLE_CRON_RULES[2].value, // every 1h
   preventSleep: true,
   useSound: true,
   areEmailAlertsEnabled: true,

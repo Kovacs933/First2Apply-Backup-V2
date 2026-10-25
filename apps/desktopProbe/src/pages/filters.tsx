@@ -1,5 +1,5 @@
 import { Cross2Icon, MinusCircledIcon } from '@radix-ui/react-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
 import { FiltersSkeleton } from '@/components/skeletons/filtersSkeleton';
@@ -12,7 +12,6 @@ import { Badge } from '@first2apply/ui';
 import { Button } from '@first2apply/ui';
 import { Input } from '@first2apply/ui';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@first2apply/ui';
-import { useToast } from '@first2apply/ui';
 
 import { DefaultLayout } from './defaultLayout';
 
@@ -25,7 +24,6 @@ const AI_RULE_EXAMPLES = [
 
 export function FiltersPage() {
   const { handleError } = useError();
-  const { toast } = useToast();
 
   const [userAiInput, setUserAiInput] = useState<string>('');
   const [blacklistedCompanies, setBlacklistedCompanies] = useState<string[]>([]);
@@ -72,22 +70,50 @@ export function FiltersPage() {
     setUserAiInput((current) => (current.trim() ? `${current.trimEnd()}\n${rule}` : rule));
 
   /**
-   * Save the config to the database.
+   * Save the config to the database automatically, a moment after the user stops typing or clicking.
    */
-  const onSave = async () => {
-    try {
-      const updatedConfig = await updateAdvancedMatchingConfig({
-        chatgpt_prompt: userAiInput,
-        blacklisted_companies: blacklistedCompanies,
-      });
-      setUserAiInput(updatedConfig.chatgpt_prompt);
-      setBlacklistedCompanies(updatedConfig.blacklisted_companies);
-      // advanced matching is available to everyone in Foundation, no plan check
-      toast({ title: 'Advanced matching filters saved' });
-    } catch (error) {
-      handleError({ error, title: 'Failed to save advanced matching filters' });
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const lastSaved = useRef<string | null>(null);
+  useEffect(() => {
+    if (isLoading) return;
+    const snapshot = JSON.stringify({ userAiInput, blacklistedCompanies });
+    // the first run after loading is what's already saved
+    if (lastSaved.current === null || lastSaved.current === snapshot) {
+      lastSaved.current = snapshot;
+      return;
     }
-  };
+
+    setSaveStatus('saving');
+    const timer = setTimeout(async () => {
+      try {
+        // advanced matching is available to everyone in Foundation, no plan check
+        await updateAdvancedMatchingConfig({
+          chatgpt_prompt: userAiInput,
+          blacklisted_companies: blacklistedCompanies,
+        });
+        lastSaved.current = snapshot;
+        setSaveStatus('saved');
+      } catch (error) {
+        setSaveStatus('idle');
+        handleError({ error, title: 'Failed to save advanced matching filters' });
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [isLoading, userAiInput, blacklistedCompanies]);
+
+  // save anything still waiting when the user leaves the page
+  const latest = useRef({ userAiInput, blacklistedCompanies });
+  latest.current = { userAiInput, blacklistedCompanies };
+  useEffect(
+    () => () => {
+      const { userAiInput, blacklistedCompanies } = latest.current;
+      if (lastSaved.current === null || lastSaved.current === JSON.stringify({ userAiInput, blacklistedCompanies })) return;
+      updateAdvancedMatchingConfig({ chatgpt_prompt: userAiInput, blacklisted_companies: blacklistedCompanies }).catch(
+        (error) => console.error(error),
+      );
+    },
+    [],
+  );
 
   if (isLoading) {
     return (
@@ -107,59 +133,26 @@ export function FiltersPage() {
         </p>
         <ol className="max-w-3xl list-decimal space-y-1 pl-5 text-base">
           <li>Write what you do and don't want in the first box, in plain English.</li>
-          <li>
-            Click <span className="font-medium">Save filters</span>. They apply to every new job from then on.
-          </li>
+          <li>That's it: your filters save automatically and apply to every new job from then on.</li>
         </ol>
       </div>
-
-      {/* suggestions based on the jobs the user deleted */}
-      <section className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-1 text-lg font-medium">Suggested for you</h2>
-        {suggestions.rules.length === 0 && suggestions.companies.length === 0 ? (
-          <p className="text-base text-muted-foreground">
-            {deletedJobs.length < 2
-              ? "Delete the jobs you're not interested in, and Foundation will suggest what to hide based on them."
-              : 'No new suggestions right now. Keep deleting jobs you don’t want and suggestions will appear here.'}
-          </p>
-        ) : (
-          <>
-            <p className="mb-3 text-base text-muted-foreground">
-              Based on the {deletedJobs.length} jobs you deleted. Click one to add it, then press Save filters.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.rules.map(({ rule, reason }) => (
-                <button
-                  key={rule}
-                  type="button"
-                  title={reason}
-                  className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-left text-sm hover:border-primary hover:bg-primary/10"
-                  onClick={() => addRule(rule)}
-                >
-                  + {rule} <span className="text-muted-foreground">({reason.toLowerCase()})</span>
-                </button>
-              ))}
-              {suggestions.companies.map(({ company, reason }) => (
-                <button
-                  key={company}
-                  type="button"
-                  title={reason}
-                  className="rounded-full border border-destructive/30 bg-destructive/5 px-3 py-1 text-left text-sm hover:border-destructive"
-                  onClick={() => setBlacklistedCompanies((current) => [...current, company])}
-                >
-                  + Hide {company} <span className="text-muted-foreground">({reason.toLowerCase()})</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
 
       <section>
         <h2 className="mb-1 text-lg font-medium">1. What are you looking for?</h2>
         <p className="mb-3 text-base text-muted-foreground">
           Be specific: say what to hide, not just what you like. Click an example to add it, then edit it to suit you.
         </p>
+
+        <SuggestedForYou
+          deletedCount={deletedJobs.length}
+          emptyText="No rule suggestions right now. Keep deleting jobs you don't want and they'll appear here."
+          items={suggestions.rules.map(({ rule, reason }) => ({
+            key: rule,
+            title: rule,
+            reason,
+            onAdd: () => addRule(rule),
+          }))}
+        />
 
         <div className="mb-3 flex flex-wrap gap-2">
           {AI_RULE_EXAMPLES.map((example) => (
@@ -197,6 +190,17 @@ export function FiltersPage() {
           Type a company's name exactly as it appears on job adverts, then click Add company. You won't see their jobs
           again.
         </p>
+
+        <SuggestedForYou
+          deletedCount={deletedJobs.length}
+          emptyText="No company suggestions right now. If you keep deleting jobs from the same company, it'll appear here."
+          items={suggestions.companies.map(({ company, reason }) => ({
+            key: company,
+            title: `Hide ${company}`,
+            reason,
+            onAdd: () => setBlacklistedCompanies((current) => [...current, company]),
+          }))}
+        />
 
         <div className="flex w-full gap-2">
           <div className="relative flex-1">
@@ -278,9 +282,54 @@ export function FiltersPage() {
         </div>
       </section>
 
-      <Button className="ml-auto w-36" onClick={onSave}>
-        Save filters
-      </Button>
+      <p className="ml-auto text-sm text-muted-foreground" aria-live="polite">
+        {saveStatus === 'saving' ? 'Saving ...' : saveStatus === 'saved' ? 'All changes saved' : 'Changes save automatically'}
+      </p>
     </DefaultLayout>
+  );
+}
+
+/**
+ * The 5 most likely things to hide, based on the jobs the user deleted, each with the reason why.
+ */
+function SuggestedForYou({
+  deletedCount,
+  emptyText,
+  items,
+}: {
+  deletedCount: number;
+  emptyText: string;
+  items: Array<{ key: string; title: string; reason: string; onAdd: () => void }>;
+}) {
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-card p-4">
+      <h3 className="text-base font-medium">Suggested for you</h3>
+      {items.length === 0 ? (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {deletedCount < 2
+            ? "Delete the jobs you're not interested in, and Foundation will suggest what to hide based on them."
+            : emptyText}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Based on the {deletedCount} jobs you deleted. Click Add to use one.
+          </p>
+          <ul className="mt-3 divide-y divide-border">
+            {items.map(({ key, title, reason, onAdd }) => (
+              <li key={key} className="flex items-center justify-between gap-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{title}</p>
+                  <p className="text-sm text-muted-foreground">{reason}</p>
+                </div>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={onAdd}>
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }
