@@ -3,13 +3,15 @@
 # The backend address is baked into the installer when it is built.
 #   - For other people's computers, pass your hosted Supabase project:
 #       .\build-installer.ps1 -SupabaseUrl https://<project>.supabase.co -SupabaseKey <anon or publishable key>
-#   - With no parameters it uses apps\desktopProbe\.env (http://localhost:54321), which only works
-#     on this PC while the local backend is running.
+#   - Or run deploy-backend.ps1, which looks up the key and calls this script for you.
+#   - -LocalOnly uses apps\desktopProbe\.env (http://localhost:54321), which only works
+#     on this PC while the local backend is running. Never upload a -LocalOnly installer.
 param(
   [string]$SupabaseUrl,
   [string]$SupabaseKey,
   # optional: folder where you publish releases (<platform>/<arch>/RELEASES.json) to turn on update checks
-  [string]$UpdateFeedUrl
+  [string]$UpdateFeedUrl,
+  [switch]$LocalOnly
 )
 $ErrorActionPreference = 'Stop'
 $root  = Split-Path $PSScriptRoot -Parent
@@ -22,8 +24,12 @@ function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 if ($SupabaseUrl) { $env:SUPABASE_URL = $SupabaseUrl }
 if ($SupabaseKey) { $env:SUPABASE_KEY = $SupabaseKey }
 if ($UpdateFeedUrl) { $env:UPDATE_FEED_URL = $UpdateFeedUrl }
-if (-not $SupabaseUrl) {
-  Write-Host 'No -SupabaseUrl given: the installer will connect to the backend on THIS PC only.' -ForegroundColor Yellow
+# a build without the hosted address can't log in anywhere but this PC (1.0.11 shipped like that once)
+if (-not $SupabaseUrl -and -not $LocalOnly) {
+  throw 'No -SupabaseUrl given. Run deploy-backend.ps1, pass -SupabaseUrl/-SupabaseKey, or pass -LocalOnly for a this-PC-only test build.'
+}
+if ($LocalOnly) {
+  Write-Host '-LocalOnly: the installer will connect to the backend on THIS PC only. Do not upload it.' -ForegroundColor Yellow
 }
 if ($SupabaseUrl -and -not $SupabaseKey) { throw 'Pass -SupabaseKey together with -SupabaseUrl.' }
 
@@ -50,6 +56,8 @@ Copy-Item $setup $release -Force
 Copy-Item (Join-Path $probe 'out\make\squirrel.windows\x64\*.nupkg'), (Join-Path $probe 'out\make\squirrel.windows\x64\RELEASES') $release -Force
 
 # the Desktop "Upload this" folder is what gets attached to the GitHub release, so keep it in step
+# (a this-PC-only build must never end up there)
+if ($LocalOnly) { Step 'Done (local-only build, Upload this left alone)'; return }
 $upload = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Upload this'
 New-Item -ItemType Directory -Force $upload | Out-Null
 Copy-Item (Join-Path $release 'FoundationSetup.exe') $upload -Force

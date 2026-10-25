@@ -1,0 +1,102 @@
+name: Foundation release
+
+# Push a tag like v1.0.13 (GitHub Desktop: History -> right-click the commit -> Create Tag, then Push)
+# and this updates the online backend, builds FoundationSetup.exe against it and publishes the GitHub release.
+# Replaces running "Update Foundation online" and launcher\build-installer.ps1 by hand.
+#
+# Repository secrets it needs (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN  personal token from supabase.com/dashboard/account/tokens (starts sbp_)
+#   SUPABASE_DB_PASSWORD   the database password (launcher\hosted-db-password.txt)
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  PROJECT_REF: fybhwybxztwbapjszdfs
+  # the public anon key: it ships inside every installer, so it isn't a secret (Supabase -> API Keys -> anon)
+  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5Ymh3eWJ4enR3YmFwanN6ZGZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NjYyOTEsImV4cCI6MjEwODQ0MjI5MX0.xYtU9A_rE_LIRZ9Ts26g2QuZo8Bn_1vUjXB1Edzon2Q
+
+jobs:
+  backend:
+    name: Update the online backend
+    runs-on: windows-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # the database first: new app versions and functions read its new columns
+      - name: Update the database
+        working-directory: apps/backend
+        run: |
+          npx --yes supabase link --project-ref $env:PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
+          if ($LASTEXITCODE -ne 0) { throw 'Linking the project failed' }
+          npx --yes supabase db push --include-seed --password $env:SUPABASE_DB_PASSWORD --yes
+          if ($LASTEXITCODE -ne 0) { throw 'Updating the database failed' }
+
+      - name: Upload the functions
+        run: ./launcher/deploy-functions.ps1 -ProjectRef $env:PROJECT_REF
+
+  installer:
+    name: Build and publish the installer
+    needs: backend
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # a tag that doesn't match the app's version would publish an installer that calls itself something else
+      - name: Check the tag matches package.json
+        if: github.ref_type == 'tag'
+        run: |
+          $version = node -p "require('./apps/desktopProbe/package.json').version"
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME doesn't match apps/desktopProbe/package.json version $version" }
+
+      - name: Build the installer
+        env:
+          # .env isn't in the repo; these are the values it would supply
+          APP_BUNDLE_ID: ro.beastx.first2apply.dev
+          MEZMO_API_KEY: ''
+          AMPLITUDE_API_KEY: ''
+        run: ./launcher/build-installer.ps1 -SupabaseUrl "https://$env:PROJECT_REF.supabase.co" -SupabaseKey $env:SUPABASE_ANON_KEY
+
+      # the installer must point at the online backend, never a local one (1.0.11 shipped like that)
+      - name: Check the installer points at the online backend
+        run: |
+          $asar = Get-ChildItem apps/desktopProbe/out -Recurse -Filter app.asar | Select-Object -First 1
+          $text = [IO.File]::ReadAllText($asar.FullName)
+          if (-not $text.Contains("https://$env:PROJECT_REF.supabase.co")) { throw 'Installer does not contain the online backend address' }
+          if ($text.Contains('localhost:54321')) { throw 'Installer points at a local backend' }
+
+      - name: Publish the GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: release/FoundationSetup.exe
+          fail_on_unmatched_files: true
+
+      # manual runs (Actions tab -> Run workflow) just keep the installer as a download on the run page
+      - name: Keep the installer (manual run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FoundationSetup
+          path: release/FoundationSetup.exe
