@@ -41,6 +41,14 @@ jobs:
           npx --yes supabase db push --include-seed --password $env:SUPABASE_DB_PASSWORD --yes
           if ($LASTEXITCODE -ne 0) { throw 'Updating the database failed' }
 
+      # db push only runs a seed file the first time, so later changes to the job board list never reached
+      # the online database; sites.sql is safe to run again (it adds or updates rows), so run it every release
+      - name: Update the job boards
+        working-directory: apps/backend
+        run: |
+          npx --yes supabase db query --linked --agent=no -f supabase/sites.sql
+          if ($LASTEXITCODE -ne 0) { throw 'Updating the job boards failed' }
+
       - name: Upload the functions
         run: ./launcher/deploy-functions.ps1 -ProjectRef $env:PROJECT_REF
 

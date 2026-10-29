@@ -178,4 +178,6 @@ export const BOARD_SEARCH_URL_BUILDERS: Partial<Record<SiteProvider, (search: Bo
     })}`,
   [SiteProvider.simplyHired]: (s) =>
     `https://www.simplyhired.co.uk/search?${query({ q: s.keywords, l: s.location, sr: boardDistance(SiteProvider.simplyHired, s) })}`,
+  // only lists jobs in and around Leeds; its location box matches the advert's text, so a postcode would find nothing
+  [SiteProvider.doingGoodLeeds]: (s) => `https://val.org.uk/jobs/?${query({ search_keywords: s.keywords })}`,
 };

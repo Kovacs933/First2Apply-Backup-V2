@@ -1,7 +1,7 @@
 import Markdown from 'react-markdown';
 
 import { tidyDescription } from '@/lib/tidyDescription';
-import { Job, getRelativeTimeString } from '@first2apply/core';
+import { Job, formatSalary, getRelativeTimeString } from '@first2apply/core';
 import { useSites } from '@first2apply/ui';
 import { Skeleton } from '@first2apply/ui';
 import rehypeRaw from 'rehype-raw';
@@ -17,7 +17,7 @@ function KeyDetails({ job, siteName }: { job: Job; siteName?: string }) {
   // older jobs kept the board's "1 week ago" text as a tag; it isn't a contract type
   const otherTags = (job.tags ?? []).filter((tag) => tag !== closingTag && !isDateTag(tag));
   const rows: Array<[string, string | undefined]> = [
-    ['Salary', job.salary],
+    ['Salary', job.salary ? formatSalary(job.salary) : undefined],
     ['Location', job.location],
     ['Work type', job.jobType ? job.jobType.charAt(0).toUpperCase() + job.jobType.slice(1) : undefined],
     ['Contract', otherTags.slice(0, 3).join(', ') || undefined],

@@ -30,6 +30,7 @@ export enum SiteProvider {
   myNewTerm = 'myNewTerm',
   gumtree = 'gumtree',
   simplyHired = 'simplyHired',
+  doingGoodLeeds = 'doingGoodLeeds',
   // single-employer vacancy pages
   lighthouseFuturesTrust = 'lighthouseFuturesTrust',
 

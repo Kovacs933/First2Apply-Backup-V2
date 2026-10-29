@@ -7,7 +7,7 @@ import { parsePostedText } from './postedDate.ts';
 
 /**
  * Parsers for UK job boards: Reed, Totaljobs (also CWJobs), CV-Library, Adzuna,
- * NHS Jobs, GOV.UK Work Hub, CharityJob, jobs.ac.uk, MyNewTerm, Gumtree and SimplyHired.
+ * NHS Jobs, GOV.UK Work Hub, CharityJob, jobs.ac.uk, MyNewTerm, Gumtree, SimplyHired and Doing Good Leeds.
  *
  * Job ids are prefixed with the board name because the jobs table is unique per
  * (user, externalId) and plain numeric ids from two boards could collide.
@@ -583,6 +583,46 @@ export function parseSimplyHiredJobs({ siteId, html }: { siteId: number; html: s
       tags: jobTypes,
       // ex: "14d", "5h"
       postedAt: parsePostedText(text(el.querySelector('[data-testid="searchSerpJobDateStamp"]'))),
+    };
+  });
+}
+
+/**
+ * Doing Good Leeds, the Leeds charity and voluntary sector jobs board, now at val.org.uk/jobs (Voluntary Action Leeds).
+ * The results are loaded with JavaScript; cards have no salary, it's read from the job's page.
+ */
+export function parseDoingGoodLeedsJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+  const document = parseDocument(html);
+
+  const jobElements = Array.from(document.querySelectorAll('ul.job_listings > li.job_listing')) as Element[];
+  if (jobElements.length === 0) {
+    // ex: "There are no listings matching your search."
+    return document.querySelector('ul.job_listings > li.no_job_listings_found') ? EMPTY_LIST : LIST_NOT_FOUND;
+  }
+
+  return toResult(jobElements, (el) => {
+    const href = el.querySelector('a')?.getAttribute('href')?.split('?')[0];
+    const title = text(el.querySelector('.position h3'));
+    const id = el.getAttribute('class')?.match(/\bpost-(\d+)\b/)?.[1];
+    if (!href || !title || !id) return null;
+
+    const companyName = text(el.querySelector('.position .company strong')) ?? text(el.querySelector('.position .company'));
+    if (!companyName) return null;
+    const location = text(el.querySelector('.location'));
+    const contract = text(el.querySelector('.meta .job-type'));
+
+    return {
+      siteId,
+      externalId: `doinggoodleeds-${id}`,
+      externalUrl: href,
+      title,
+      companyName,
+      companyLogo: imageSrc(el.querySelector('img.company_logo')),
+      location,
+      jobType: detectJobType(location, contract),
+      labels: [],
+      tags: contract ? [contract] : [],
+      postedAt: parsePostedText(el.querySelector('.meta time')?.getAttribute('datetime')),
     };
   });
 }

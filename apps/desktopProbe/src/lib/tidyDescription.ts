@@ -3,12 +3,36 @@ const BULLET = /^(?:[·•●▪◦‣∙⁃○■□➢➤►✓✔→*]|-(?!-)
 // lines that are just junk copied from the board's page
 const JUNK = /^(apply now|apply for this job|save job|save|share|report this job|show more|show less|see more|read more|back to search results?)\.?$/i;
 
+// "#content p { margin-top: 8px; }": a CSS rule, every part of its body is a "property: value"
+const CSS_RULE = /(?:@[\w-]+[^{};\n]*|[^{};\n]*)\{([^{}]*)\}/g;
+const isCssBody = (body: string) =>
+  body
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .every((part) => /^-*[a-z][a-z-]*\s*:\s*\S/.test(part));
+
+/**
+ * Remove CSS that some boards (ex: Indeed) leave inside the advert text, ex: "@layer htmlContent { ... }".
+ * Rules are removed from the inside out, so "@layer x { a { color: red; } }" goes completely.
+ */
+function removeCss(text: string): string {
+  // CSS comments ("/* ... */") only count when the text has CSS rules in it
+  let result = /\{[^{}]*:[^{}]*;[^{}]*\}/.test(text) ? text.replace(/\/\*[\s\S]*?\*\//g, '') : text;
+  for (let pass = 0; pass < 10; pass++) {
+    const next = result.replace(CSS_RULE, (rule, body: string) => (isCssBody(body) ? '' : rule));
+    if (next === result) break;
+    result = next;
+  }
+  return result;
+}
+
 /**
  * Tidy a job description (markdown made from the board's HTML) so every job reads the same way:
  * real bullet lists, proper headings, no stray spacing or page junk.
  */
 export function tidyDescription(markdown: string): string {
-  const lines = markdown
+  const lines = removeCss(markdown)
     .replace(/\r/g, '')
     .replace(/&nbsp;| /g, ' ')
     .replace(/\\([-*_.()[\]#+!])/g, '$1') // turndown escapes these; they only add noise here

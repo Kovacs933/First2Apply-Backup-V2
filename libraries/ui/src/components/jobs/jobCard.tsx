@@ -1,4 +1,4 @@
-import { getRelativeTimeString, Job, JobSite } from "@first2apply/core"
+import { formatSalary, getRelativeTimeString, Job, JobSite } from "@first2apply/core"
 import {
   Tooltip,
   TooltipContent,
@@ -111,7 +111,7 @@ export function JobCard({
                   |{" "}
                 </span>
               )}
-              <span>{job.salary}</span>
+              <span>{formatSalary(job.salary)}</span>
             </>
           )}
           {/* older jobs kept the board's "1 week ago" text as a tag; the date is shown below instead */}

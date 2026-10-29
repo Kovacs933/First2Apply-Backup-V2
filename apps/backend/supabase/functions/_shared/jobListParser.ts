@@ -18,6 +18,7 @@ import {
   parseAdzunaJobs,
   parseCharityJobJobs,
   parseCvLibraryJobs,
+  parseDoingGoodLeedsJobs,
   parseGumtreeJobs,
   parseJobsAcUkJobs,
   parseLighthouseFuturesTrustJobs,
@@ -42,8 +43,8 @@ const turndownService = new turndown({
 function parseSalary({ salary }: { salary?: string }): string | undefined {
   if (!salary) return;
 
-  // remove all non numeric characters, but keep currency symbols and dashes
-  const cleanedSalary = salary.trim().replace(/[^0-9$€£-\skK]/g, '');
+  // remove all non numeric characters, but keep currency symbols, dashes and decimal points ("£13.30", not "£1330")
+  const cleanedSalary = salary.trim().replace(/[^0-9$€£.\-\skK]/g, '');
   return cleanedSalary.trim();
 }
 
@@ -306,6 +307,8 @@ async function parseSiteJobsList({
       return parseGumtreeJobs({ siteId: site.id, html });
     case SiteProvider.simplyHired:
       return parseSimplyHiredJobs({ siteId: site.id, html });
+    case SiteProvider.doingGoodLeeds:
+      return parseDoingGoodLeedsJobs({ siteId: site.id, html });
     case SiteProvider.lighthouseFuturesTrust:
       return parseLighthouseFuturesTrustJobs({ siteId: site.id, html });
     case SiteProvider.custom:

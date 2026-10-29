@@ -110,6 +110,9 @@ const SITE_PROVIDER_QUERY_SELECTORS: Record<SiteProvider, SiteProviderQuerySelec
   [SiteProvider.simplyHired]: {
     description: ['[data-testid="viewJobBodyJobFullDescriptionContent"]'],
   },
+  [SiteProvider.doingGoodLeeds]: {
+    description: ['.et_pb_post_content', '.job_description'],
+  },
   // these two are read from the MyNewTerm page's JobPosting data instead (parseMyNewTermJobDescription)
   [SiteProvider.myNewTerm]: {
     description: ['.vacancy-description'],
@@ -220,6 +223,8 @@ async function parseProviderJobDescription({
     case SiteProvider.myNewTerm:
     case SiteProvider.lighthouseFuturesTrust:
       return parseMyNewTermJobDescription({ html });
+    case SiteProvider.doingGoodLeeds:
+      return parseDoingGoodLeedsJobDescription({ html });
     case SiteProvider.custom:
       return await parseCustomJobDescription({ html, user, job, ...context });
   }
@@ -313,6 +318,10 @@ function extractCommonDomElements({ provider, html }: { provider: SiteProvider; 
       break;
     }
   }
+  // some boards (ex: Indeed) put <style> blocks inside the advert; their CSS would show up as text
+  (Array.from(descriptionContainer?.querySelectorAll('style, script, noscript') ?? []) as Element[]).forEach((el) =>
+    el.remove(),
+  );
 
   return {
     document,
@@ -850,6 +859,22 @@ function parseMyNewTermJobDescription({ html }: { html: string }): JobDescriptio
     };
   }
   return {};
+}
+
+/**
+ * Doing Good Leeds (val.org.uk) adverts: the search results have no salary, so it's read from the
+ * "Salary" row in the job page's header, ex: <dt>Salary</dt><dd>£44,394.09 - £46,187.61</dd>.
+ */
+function parseDoingGoodLeedsJobDescription({ html }: { html: string }): JobDescriptionUpdates {
+  const { document, descriptionContainer } = extractCommonDomElements({ provider: SiteProvider.doingGoodLeeds, html });
+  const salaryRow = (Array.from(document.querySelectorAll('.pld-job-field')) as Element[]).find(
+    (row) => row.querySelector('dt')?.textContent.trim().toLowerCase() === 'salary',
+  );
+  const salary = salaryRow?.querySelector('dd')?.textContent.replace(/\s+/g, ' ').trim();
+  return {
+    description: descriptionContainer ? turndownService.turndown(descriptionContainer.innerHTML) : undefined,
+    ...(salary && { salary }),
+  };
 }
 
 /**

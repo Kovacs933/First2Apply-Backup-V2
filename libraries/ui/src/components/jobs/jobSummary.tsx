@@ -14,6 +14,7 @@ import {
   Job,
   JobLabel,
   JobStatus,
+  formatSalary,
   getRelativeTimeString,
 } from "@first2apply/core"
 import { useSites } from "../../hooks/useSites"
@@ -121,7 +122,7 @@ export function JobSummary({
 
       {/* salary, type, tags and dates are listed in the job's Key details, below */}
       {job.salary && (
-        <p className="mt-3 font-medium lg:mt-4">{job.salary}</p>
+        <p className="mt-3 font-medium lg:mt-4">{formatSalary(job.salary)}</p>
       )}
 
       {/* Filtered out job explainer */}

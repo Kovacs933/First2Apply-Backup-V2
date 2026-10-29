@@ -40,7 +40,9 @@ INSERT INTO public.sites (id, name, urls, created_at, "queryParamsToRemove", log
 -- schools, colleges and academy trusts
 (28, 'MyNewTerm', ARRAY['https://mynewterm.com/search']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=mynewterm.com&sz=128', ARRAY['/']::text[], 'myNewTerm', false, false),
 (29, 'Gumtree Jobs', ARRAY['https://www.gumtree.com/jobs']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=gumtree.com&sz=128', ARRAY['/','/jobs']::text[], 'gumtree', false, false),
-(30, 'SimplyHired', ARRAY['https://www.simplyhired.co.uk']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=simplyhired.co.uk&sz=128', ARRAY['/']::text[], 'simplyHired', false, false)
+(30, 'SimplyHired', ARRAY['https://www.simplyhired.co.uk']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=simplyhired.co.uk&sz=128', ARRAY['/']::text[], 'simplyHired', false, false),
+-- Leeds charity and voluntary sector jobs (VAL); it replaced Doing Good Leeds, whose jobs page now redirects here
+(31, 'Voluntary Action Leeds', ARRAY['https://val.org.uk/jobs/']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=val.org.uk&sz=128', ARRAY['/','/jobs']::text[], 'doingGoodLeeds', false, false)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   urls = EXCLUDED.urls,
