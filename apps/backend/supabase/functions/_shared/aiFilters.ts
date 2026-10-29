@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabasefork';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
+import { findAvoidedWord, parseAvoidWords } from './keywordFilter.ts';
 import { ILogger } from './logger.ts';
 import { checkJobLocation } from './locationFilter.ts';
 import { buildOpenAiClient, logAiUsage, OPENROUTER_ROUTING } from './openAI.ts';
@@ -61,6 +62,16 @@ export async function applyAiFilters({
     return {
       newStatus: 'excluded_by_advanced_matching',
       excludeReason: `${job.companyName} is blacklisted.`,
+    };
+  }
+
+  // "Avoid solicitor" (no AI): the avoided words in the job title
+  const avoidedWord = findAvoidedWord(job.title, parseAvoidWords(aiFilters.chatgpt_prompt ?? ''));
+  if (avoidedWord) {
+    logger.info(`job excluded due to avoided word in title: ${avoidedWord}`);
+    return {
+      newStatus: 'excluded_by_advanced_matching',
+      excludeReason: `The job title includes "${avoidedWord}", which your filters avoid.`,
     };
   }
 

@@ -16,7 +16,7 @@ const isCssBody = (body: string) =>
  * Remove CSS that some boards (ex: Indeed) leave inside the advert text, ex: "@layer htmlContent { ... }".
  * Rules are removed from the inside out, so "@layer x { a { color: red; } }" goes completely.
  */
-function removeCss(text: string): string {
+export function removeCss(text: string): string {
   // CSS comments ("/* ... */") only count when the text has CSS rules in it
   let result = /\{[^{}]*:[^{}]*;[^{}]*\}/.test(text) ? text.replace(/\/\*[\s\S]*?\*\//g, '') : text;
   for (let pass = 0; pass < 10; pass++) {

@@ -1,7 +1,12 @@
 import { CvProfile, GeneratedCv } from '@first2apply/core';
 
+import { removeCss } from './tidyDescription';
+
 /** The parts of a found job the CV builder looks at. */
 type SourceJob = { title: string; description?: string | null; tags?: string[] | null; status?: string };
+
+/** An advert's text without the CSS some saved Indeed adverts still hold ("#react-native-html-content { ... }"). */
+const advertText = (job: SourceJob) => removeCss(job.description ?? '');
 
 /** Jobs the candidate saved ("archived" is the Saved tab) or applied to: the roles they really want. */
 export const isChosenJob = (job: SourceJob) => job.status === 'archived' || job.status === 'applied';
@@ -192,8 +197,8 @@ export function findCvImprovements(jobs: SourceJob[], profile: CvProfile, max = 
     ...(profile.qualifications ?? []).flatMap((q) => [q.qualification, q.place]),
   ].join('\n');
   const adverts = jobs.map((job) => ({
-    text: [job.description ?? '', ...(job.tags ?? [])].join('\n'),
-    spec: personSpecification(job.description ?? ''),
+    text: [advertText(job), ...(job.tags ?? [])].join('\n'),
+    spec: personSpecification(advertText(job)),
     chosen: isChosenJob(job),
   }));
   const count = (name: string, pattern: RegExp, kind: CvImprovement['kind']) => {
@@ -251,8 +256,8 @@ export function personSpecification(description: string): string {
 export function findEmployerSkills(jobs: SourceJob[], max = 15): EmployerSkill[] {
   const adverts = jobs.map((job) => {
     // not the title: "Job Coach" would otherwise count as asking for coaching in every advert
-    const text = [job.description ?? '', ...(job.tags ?? [])].join('\n');
-    return { text, spec: personSpecification(job.description ?? ''), chosen: isChosenJob(job) };
+    const text = [advertText(job), ...(job.tags ?? [])].join('\n');
+    return { text, spec: personSpecification(advertText(job)), chosen: isChosenJob(job) };
   });
   const counts = SKILLS.map(({ skill, pattern }) => {
     const mentioning = adverts.filter((a) => pattern.test(a.text));

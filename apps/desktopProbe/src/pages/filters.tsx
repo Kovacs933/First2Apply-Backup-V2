@@ -186,6 +186,10 @@ export function FiltersPage() {
           />
           <span className="absolute bottom-4 right-4 text-sm text-muted-foreground">{userAiInput.length}/5000</span>
         </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Words after "Avoid" or "Hide" (like Avoid solicitor) are checked against each new job's title straight away,
+          no AI needed. Separate them with commas.
+        </p>
 
       </section>
 

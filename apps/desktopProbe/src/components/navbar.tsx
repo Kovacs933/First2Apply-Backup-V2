@@ -7,6 +7,7 @@ import {
   MagnifyingGlassIcon,
   MoonIcon,
   QuestionMarkCircledIcon,
+  ReaderIcon,
   SunIcon,
 } from '@radix-ui/react-icons';
 import { RefreshCw } from 'lucide-react';
@@ -41,6 +42,12 @@ export function Navbar() {
       name: 'CV Builder',
       path: '/cv',
       icon: <FileTextIcon className="h-7 w-7" />,
+    },
+    {
+      // the page is "Future training (CPD)"; the full name doesn't fit the menu
+      name: 'Training (CPD)',
+      path: '/training',
+      icon: <ReaderIcon className="h-7 w-7" />,
     },
     {
       name: 'Feedback',

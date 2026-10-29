@@ -1,5 +1,6 @@
 import { Cross2Icon, PlusIcon } from '@radix-ui/react-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { Icons } from '@/components/icons';
 import { useError } from '@/hooks/error';
@@ -45,6 +46,7 @@ const AI_WRITING_AVAILABLE = false as boolean;
 export function CvPage() {
   const { handleError } = useError();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [state, setState] = useState<SavedState>(loadCvBuilderState);
   const { targetRole, profile, existingCv } = state;
@@ -170,7 +172,15 @@ export function CvPage() {
   const employerSkills = useMemo<EmployerSkill[]>(() => findEmployerSkills(roleJobs), [roleJobs]);
   const savedRoleJobs = roleJobs.filter(isChosenJob).length;
   const strength = useMemo(() => cvDataStrength(roleJobs), [roleJobs]);
-  const improvements = useMemo(() => findCvImprovements(roleJobs, profile), [roleJobs, profile]);
+  // with no role typed in yet, suggestions come from all the jobs the candidate saved
+  const savedJobs = useMemo(() => foundJobs.filter(isChosenJob), [foundJobs]);
+  const improvementJobs = targetRole.trim() ? roleJobs : savedJobs;
+  const improvements = useMemo(() => findCvImprovements(improvementJobs, profile), [improvementJobs, profile]);
+  const addQualification = (name: string) => {
+    const typed = qualifications.filter((q) => q.qualification.trim() || q.place.trim());
+    updateProfile({ qualifications: [...typed, { qualification: name, place: '', dates: '' }] });
+    toast({ title: `${name} added`, description: 'Add where and when you got it under Qualifications below.' });
+  };
 
   // UK starter profiles filled in with the candidate's details, the one that fits the role first
   const starters = useMemo(() => {
@@ -464,13 +474,16 @@ export function CvPage() {
           </div>
         )}
 
-        {/* what the candidate doesn't have yet: suggestions only, never added to the CV */}
-        {targetRole.trim() && !isLoadingJobs && roleJobs.length > 0 && (
+        {/* what the candidate doesn't have yet: only added to the CV when they click "I have this" */}
+        {!isLoadingJobs && improvementJobs.length > 0 && (
           <div className="rounded-lg border border-border bg-card p-4">
             <h3 className="text-base font-medium">What would strengthen your CV</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Qualifications, checks and skills these adverts ask for that aren't in your details yet. They're not added
-              to your CV: they're worth working towards, or adding below if you already have them.
+              {targetRole.trim()
+                ? 'Qualifications, checks and skills these adverts ask for that aren\'t in your details yet.'
+                : `Qualifications, checks and skills the ${savedJobs.length} jobs you saved ask for that aren't in your details yet. Type the job you want above to focus these on one role.`}{' '}
+              If you already have one, click I have this to add it. The rest are worth working towards: Future training
+              (CPD) shows courses for them.
             </p>
             {improvements.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">
@@ -483,16 +496,26 @@ export function CvPage() {
                     <div>
                       <p className="text-sm font-medium">{name}</p>
                       <p className="text-sm text-muted-foreground">
-                        In {jobCount} of {roleJobs.length} adverts
-                        {savedCount > 0 && ` · ${savedCount} you saved`}
+                        {kind} · in {jobCount} of {improvementJobs.length} {targetRole.trim() ? 'adverts' : 'saved jobs'}
+                        {targetRole.trim() && savedCount > 0 && ` · ${savedCount} you saved`}
                         {essentialCount > 0 && ` · in ${essentialCount} person ${essentialCount === 1 ? 'spec' : 'specs'}`}
                       </p>
                     </div>
-                    <span className="shrink-0 text-sm text-muted-foreground">{kind}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => (kind === 'Qualification' ? addQualification(name) : addSkill(name))}
+                    >
+                      I have this
+                    </Button>
                   </li>
                 ))}
               </ul>
             )}
+            <Button variant="link" className="mt-1 h-auto px-0 text-sm" onClick={() => navigate('/training')}>
+              See training and courses for the jobs you saved
+            </Button>
           </div>
         )}
       </section>
