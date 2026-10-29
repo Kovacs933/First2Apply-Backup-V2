@@ -7,7 +7,7 @@ import { parsePostedText } from './postedDate.ts';
 
 /**
  * Parsers for UK job boards: Reed, Totaljobs (also CWJobs), CV-Library, Adzuna,
- * NHS Jobs, GOV.UK Work Hub, CharityJob and jobs.ac.uk.
+ * NHS Jobs, GOV.UK Work Hub, CharityJob, jobs.ac.uk, MyNewTerm, Gumtree and SimplyHired.
  *
  * Job ids are prefixed with the board name because the jobs table is unique per
  * (user, externalId) and plain numeric ids from two boards could collide.
@@ -436,6 +436,153 @@ export function parseLighthouseFuturesTrustJobs({ siteId, html }: { siteId: numb
       jobType: detectJobType(location),
       labels: [],
       tags: [contract, closes?.split('•')[1]?.trim()].filter((t): t is string => !!t),
+    };
+  });
+}
+
+/**
+ * mynewterm.com (schools, colleges and academy trusts). The results are loaded with JavaScript.
+ */
+export function parseMyNewTermJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+  const document = parseDocument(html);
+
+  const jobElements = Array.from(document.querySelectorAll('.list-item.job-viewer')) as Element[];
+  if (jobElements.length === 0) {
+    // the "No results found" box is always on the page, but hidden until a search comes back empty
+    const noResults = document.querySelector('#list-box-no-search-results');
+    const shown = noResults && !/display:\s*none/i.test(noResults.getAttribute('style') ?? '');
+    return shown ? EMPTY_LIST : LIST_NOT_FOUND;
+  }
+
+  return toResult(jobElements, (el) => {
+    const titleEl = el.querySelector('a.job-title-card');
+    const title = text(titleEl);
+    const href = titleEl?.getAttribute('href')?.split('?')[0];
+    const id = el.getAttribute('data-job-ads-id')?.trim() || href?.split('/').slice(-2).join('-');
+    if (!title || !href || !id) return null;
+
+    // ex: "St Peter's School 2-18, York, North Yorkshire": the school, then its town and county
+    const parts = (text(el.querySelector('dt span')) ?? text(el.querySelector('a.job-title-card + p')))?.split(/,\s*/) ?? [];
+    const companyName = (parts.length > 2 ? parts.slice(0, -2) : parts.slice(0, 1)).join(', ');
+    if (!companyName) return null;
+    const location = parts.length > 2 ? parts.slice(-2).join(', ') : parts[1];
+
+    const details = (Array.from(el.querySelectorAll('dd')) as Element[]).map((dd) => ({
+      icon: dd.querySelector('i')?.getAttribute('class') ?? '',
+      value: text(dd),
+    }));
+    const contract = details.find((d) => d.icon.includes('fa-clock'))?.value;
+    const salary = details.find((d) => d.icon.includes('fa-pound-sign') || d.icon.includes('fa-gbp'))?.value;
+    // ex: "New • Apply by 10:00am, Wednesday 18th Nov, 2026 • Job start: January 2027"
+    const closes = text(el.querySelector('.card-footer'))
+      ?.match(/Apply by (?:[\d:.]+\s*[ap]m,\s*)?([^•]+)/i)?.[1]
+      ?.trim();
+    const tags = [contract, closes ? `Closes ${closes}` : undefined].filter((t): t is string => !!t);
+
+    return {
+      siteId,
+      externalId: `mynewterm-${id}`,
+      externalUrl: href.startsWith('//') ? `https:${href}` : href,
+      title,
+      companyName,
+      companyLogo: imageSrc(el.querySelector('img[alt="logo"]')),
+      location,
+      salary,
+      jobType: detectJobType(location, contract),
+      labels: [],
+      tags,
+    };
+  });
+}
+
+/**
+ * gumtree.com jobs. Its "Results from outside your search" section is skipped.
+ */
+export function parseGumtreeJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+  const document = parseDocument(html);
+
+  const jobElements = (Array.from(document.querySelectorAll('article[data-q="search-result"]')) as Element[]).filter(
+    (el) => !el.closest('[data-q="nearby-results"]'),
+  );
+  if (jobElements.length === 0) {
+    // an empty search still shows the results page (data-q="srp"), just with no results in it
+    return document.querySelector('[data-q="srp"]') ? EMPTY_LIST : LIST_NOT_FOUND;
+  }
+
+  return toResult(jobElements, (el) => {
+    const href = el.querySelector('a[data-q="search-result-anchor"]')?.getAttribute('href')?.split('?')[0];
+    const title = text(el.querySelector('[data-q="tile-title"]'));
+    const id = href?.split('/').filter(Boolean).pop();
+    if (!href || !title || !id) return null;
+
+    // ex: <span>Permanent</span><span>Recruitment Equals One</span>, either of them may be missing
+    const locationEl = el.querySelector('[data-q="tile-location"]');
+    const details = (Array.from(locationEl?.nextElementSibling?.querySelectorAll('span') ?? []) as Element[])
+      .map((span) => text(span))
+      .filter((t): t is string => !!t);
+    const companyName = details.find((d) => d.startsWith('Recruitment '))?.replace(/^Recruitment\s+/, '');
+    if (!companyName) return null;
+    const contract = details.find((d) => !d.startsWith('Recruitment '));
+    const location = text(locationEl);
+
+    return {
+      siteId,
+      externalId: `gumtree-${id}`,
+      externalUrl: href.startsWith('/') ? `https://www.gumtree.com${href}` : href,
+      title,
+      companyName,
+      companyLogo: imageSrc(el.querySelector('img[data-q="tile-large-logo"]')),
+      location,
+      salary: text(el.querySelector('[data-testid="price"]')),
+      jobType: detectJobType(location, title),
+      labels: [],
+      tags: contract ? [contract] : [],
+      postedAt: parsePostedText(text(el.querySelector('[data-q="tile-posted-date"]'))),
+    };
+  });
+}
+
+/**
+ * simplyhired.co.uk
+ */
+export function parseSimplyHiredJobs({ siteId, html }: { siteId: number; html: string }): JobSiteParseResult {
+  const document = parseDocument(html);
+
+  const jobElements = Array.from(document.querySelectorAll('[data-testid="searchSerpJob"]')) as Element[];
+  if (jobElements.length === 0) {
+    // ex: "We could not find any zzqxvjj jobs in Leeds"
+    return /we could not find any/i.test(document.body?.textContent ?? '') || looksLikeNoResults(document)
+      ? EMPTY_LIST
+      : LIST_NOT_FOUND;
+  }
+
+  return toResult(jobElements, (el) => {
+    const id = el.getAttribute('data-jobkey')?.trim();
+    const titleEl = el.querySelector('[data-testid="searchSerpJobTitle"] a');
+    const title = text(titleEl);
+    const href = titleEl?.getAttribute('href')?.split('?')[0];
+    if (!id || !title || !href) return null;
+
+    const companyName = text(el.querySelector('[data-testid="companyName"]'));
+    if (!companyName) return null;
+    const location = text(el.querySelector('[data-testid="searchSerpJobLocation"]'));
+    const jobTypes = (Array.from(el.querySelectorAll('[data-testid^="jobTypeChip"]')) as Element[])
+      .map((chip) => text(chip))
+      .filter((t): t is string => !!t);
+
+    return {
+      siteId,
+      externalId: `simplyhired-${id}`,
+      externalUrl: href.startsWith('/') ? `https://www.simplyhired.co.uk${href}` : href,
+      title,
+      companyName,
+      location,
+      salary: text(el.querySelector('[data-testid^="salaryChip"]')),
+      jobType: detectJobType(location, ...jobTypes),
+      labels: [],
+      tags: jobTypes,
+      // ex: "14d", "5h"
+      postedAt: parsePostedText(text(el.querySelector('[data-testid="searchSerpJobDateStamp"]'))),
     };
   });
 }

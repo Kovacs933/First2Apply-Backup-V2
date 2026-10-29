@@ -37,6 +37,8 @@ const DISTANCE_OPTIONS: Partial<Record<SiteProvider, number[] | 'any'>> = {
   [SiteProvider.adzuna]: 'any',
   [SiteProvider.nhsJobs]: [5, 10, 20, 30, 50, 100],
   [SiteProvider.charityJob]: 'any',
+  [SiteProvider.gumtree]: [1, 3, 5, 10, 15, 30, 50, 75, 100],
+  [SiteProvider.simplyHired]: [5, 10, 15, 25, 50, 100],
   // GOV.UK Work Hub ignores distance in its search links, and jobs.ac.uk returns a blank page
   // when a distance is added to a link (its own form also sends map coordinates)
 };
@@ -65,6 +67,8 @@ const DISTANCE_URL_PARAMS: Array<{ host: RegExp; provider: SiteProvider; param: 
   { host: /(^|\.)adzuna\.co\.uk$/, provider: SiteProvider.adzuna, param: 'd' },
   { host: /(^|\.)jobs\.nhs\.uk$/, provider: SiteProvider.nhsJobs, param: 'distance' },
   { host: /(^|\.)charityjob\.co\.uk$/, provider: SiteProvider.charityJob, param: 'radius' },
+  { host: /(^|\.)gumtree\.com$/, provider: SiteProvider.gumtree, param: 'distance' },
+  { host: /(^|\.)simplyhired\.co\.uk$/, provider: SiteProvider.simplyHired, param: 'sr' },
 ];
 
 function distanceParamFor(url: string) {
@@ -151,4 +155,27 @@ export const BOARD_SEARCH_URL_BUILDERS: Partial<Record<SiteProvider, (search: Bo
     `https://www.charityjob.co.uk/jobs?${query({ keywords: s.keywords, location: s.location, radius: boardDistance(SiteProvider.charityJob, s) })}`,
   [SiteProvider.jobsAcUk]: (s) =>
     `https://www.jobs.ac.uk/search/?${query({ keywords: s.keywords, location: s.location })}`,
+  // MyNewTerm's links take a job title or a town, not both (its own place search needs map coordinates),
+  // so the search covers the whole UK, ex: https://mynewterm.com/search/keywords/teaching+assistant
+  [SiteProvider.myNewTerm]: (s) =>
+    `https://mynewterm.com/search/keywords/${s.keywords
+      .trim()
+      .split(/\s+/)
+      .map((word) => encodeURIComponent(word))
+      .join('+')}`,
+  // Glassdoor needs its own id for a town, which only its site can look up, so this covers the whole UK,
+  // ex: https://www.glassdoor.co.uk/Job/support-worker-jobs-SRCH_KO0,14.htm (KO0,14: the job title is characters 0-14)
+  [SiteProvider.glassdoor]: (s) => {
+    const title = slug(s.keywords);
+    return `https://www.glassdoor.co.uk/Job/${title}-jobs-SRCH_KO0,${title.length}.htm`;
+  },
+  [SiteProvider.gumtree]: (s) =>
+    `https://www.gumtree.com/search?${query({
+      search_category: 'jobs',
+      q: s.keywords,
+      search_location: s.location,
+      distance: boardDistance(SiteProvider.gumtree, s),
+    })}`,
+  [SiteProvider.simplyHired]: (s) =>
+    `https://www.simplyhired.co.uk/search?${query({ q: s.keywords, l: s.location, sr: boardDistance(SiteProvider.simplyHired, s) })}`,
 };

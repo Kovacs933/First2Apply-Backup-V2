@@ -27,6 +27,9 @@ export enum SiteProvider {
   workHub = 'workHub',
   charityJob = 'charityJob',
   jobsAcUk = 'jobsAcUk',
+  myNewTerm = 'myNewTerm',
+  gumtree = 'gumtree',
+  simplyHired = 'simplyHired',
   // single-employer vacancy pages
   lighthouseFuturesTrust = 'lighthouseFuturesTrust',
 

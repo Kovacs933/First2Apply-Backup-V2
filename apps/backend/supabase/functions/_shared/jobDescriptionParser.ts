@@ -104,7 +104,16 @@ const SITE_PROVIDER_QUERY_SELECTORS: Record<SiteProvider, SiteProviderQuerySelec
   [SiteProvider.jobsAcUk]: {
     description: ['#job-description'],
   },
-  // read from the MyNewTerm page's JobPosting data instead (parseLighthouseFuturesTrustJobDescription)
+  [SiteProvider.gumtree]: {
+    description: ['[itemprop="description"]'],
+  },
+  [SiteProvider.simplyHired]: {
+    description: ['[data-testid="viewJobBodyJobFullDescriptionContent"]'],
+  },
+  // these two are read from the MyNewTerm page's JobPosting data instead (parseMyNewTermJobDescription)
+  [SiteProvider.myNewTerm]: {
+    description: ['.vacancy-description'],
+  },
   [SiteProvider.lighthouseFuturesTrust]: {
     description: ['.vacancy-description'],
   },
@@ -205,9 +214,12 @@ async function parseProviderJobDescription({
     case SiteProvider.workHub:
     case SiteProvider.charityJob:
     case SiteProvider.jobsAcUk:
+    case SiteProvider.gumtree:
+    case SiteProvider.simplyHired:
       return parseJobDescriptionWithSelectors({ provider: site.provider, html });
+    case SiteProvider.myNewTerm:
     case SiteProvider.lighthouseFuturesTrust:
-      return parseLighthouseFuturesTrustJobDescription({ html });
+      return parseMyNewTermJobDescription({ html });
     case SiteProvider.custom:
       return await parseCustomJobDescription({ html, user, job, ...context });
   }
@@ -803,10 +815,10 @@ function parseJobDescriptionWithSelectors({
 }
 
 /**
- * Lighthouse Futures Trust vacancies open on MyNewTerm, whose page carries the advert in its schema.org JobPosting
- * data (the description is HTML that has been escaped once more inside the JSON).
+ * MyNewTerm job pages (also where Lighthouse Futures Trust vacancies open) carry the advert in their schema.org
+ * JobPosting data (the description is HTML that has been escaped once more inside the JSON).
  */
-function parseLighthouseFuturesTrustJobDescription({ html }: { html: string }): JobDescriptionUpdates {
+function parseMyNewTermJobDescription({ html }: { html: string }): JobDescriptionUpdates {
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) return {};
   const findPosting = (data: unknown): Record<string, unknown> | undefined => {

@@ -18,10 +18,13 @@ import {
   parseAdzunaJobs,
   parseCharityJobJobs,
   parseCvLibraryJobs,
+  parseGumtreeJobs,
   parseJobsAcUkJobs,
   parseLighthouseFuturesTrustJobs,
+  parseMyNewTermJobs,
   parseNhsJobs,
   parseReedJobs,
+  parseSimplyHiredJobs,
   parseTotaljobsJobs,
   parseWorkHubJobs,
 } from './parsers/ukBoards.ts';
@@ -297,6 +300,12 @@ async function parseSiteJobsList({
       return parseCharityJobJobs({ siteId: site.id, html });
     case SiteProvider.jobsAcUk:
       return parseJobsAcUkJobs({ siteId: site.id, html });
+    case SiteProvider.myNewTerm:
+      return parseMyNewTermJobs({ siteId: site.id, html });
+    case SiteProvider.gumtree:
+      return parseGumtreeJobs({ siteId: site.id, html });
+    case SiteProvider.simplyHired:
+      return parseSimplyHiredJobs({ siteId: site.id, html });
     case SiteProvider.lighthouseFuturesTrust:
       return parseLighthouseFuturesTrustJobs({ siteId: site.id, html });
     case SiteProvider.custom:

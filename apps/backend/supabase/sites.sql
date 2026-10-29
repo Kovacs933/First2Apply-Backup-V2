@@ -35,9 +35,12 @@ INSERT INTO public.sites (id, name, urls, created_at, "queryParamsToRemove", log
 (24, 'GOV.UK Find a Job (Work Hub)', ARRAY['https://www.jobs.service.gov.uk/jobs']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=gov.uk&sz=128', ARRAY['/','/jobs']::text[], 'workHub', false, false),
 (25, 'CharityJob', ARRAY['https://www.charityjob.co.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=charityjob.co.uk&sz=128', ARRAY['/']::text[], 'charityJob', false, false),
 (26, 'jobs.ac.uk', ARRAY['https://www.jobs.ac.uk']::text[], '2026-10-24 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=jobs.ac.uk&sz=128', ARRAY['/']::text[], 'jobsAcUk', false, false),
--- a single employer's vacancies page (Leeds college and charity); its jobs link to MyNewTerm. Add Search opens
--- the first address, so it's the vacancies page itself
-(27, 'Lighthouse Futures Trust', ARRAY['https://lighthousefuturestrust.org.uk/vacancies-2/']::text[], '2026-10-26 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=lighthousefuturestrust.org.uk&sz=128', ARRAY['/']::text[], 'lighthouseFuturesTrust', false, false)
+-- a single employer's vacancies page (Leeds college and charity); replaced by MyNewTerm, where all its jobs are posted
+(27, 'Lighthouse Futures Trust', ARRAY['https://lighthousefuturestrust.org.uk/vacancies-2/']::text[], '2026-10-26 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=lighthousefuturestrust.org.uk&sz=128', ARRAY['/']::text[], 'lighthouseFuturesTrust', true, false),
+-- schools, colleges and academy trusts
+(28, 'MyNewTerm', ARRAY['https://mynewterm.com/search']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=mynewterm.com&sz=128', ARRAY['/']::text[], 'myNewTerm', false, false),
+(29, 'Gumtree Jobs', ARRAY['https://www.gumtree.com/jobs']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=gumtree.com&sz=128', ARRAY['/','/jobs']::text[], 'gumtree', false, false),
+(30, 'SimplyHired', ARRAY['https://www.simplyhired.co.uk']::text[], '2026-10-29 12:00:00+00', NULL, 'https://www.google.com/s2/favicons?domain=simplyhired.co.uk&sz=128', ARRAY['/']::text[], 'simplyHired', false, false)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   urls = EXCLUDED.urls,

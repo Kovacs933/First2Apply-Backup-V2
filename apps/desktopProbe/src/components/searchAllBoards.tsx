@@ -159,7 +159,7 @@ export function SearchAllBoardsForm({ onSaved, onCancel }: { onSaved?: () => voi
         disabled={!hasLocation}
         hint={
           hasLocation
-            ? "Boards that don't offer this exact distance use their nearest wider option or their maximum (Reed up to 50 miles, LinkedIn, Indeed and NHS Jobs up to 100). GOV.UK Find a Job and jobs.ac.uk don't support distance, so they use their own default area."
+            ? "Boards that don't offer this exact distance use their nearest wider option or their maximum (Reed up to 50 miles, LinkedIn, Indeed and NHS Jobs up to 100). GOV.UK Find a Job and jobs.ac.uk don't support distance, so they use their own default area. Glassdoor and MyNewTerm search by job title across the whole UK."
             : 'Add a town, city or postcode to choose a distance.'
         }
       />
