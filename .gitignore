@@ -144,3 +144,6 @@ launcher/functions.log
 release/
 _backups/
 .webpack/
+
+# printed copies of the code (for reading, never saved to GitHub)
+/Foundation*code*.pdf
